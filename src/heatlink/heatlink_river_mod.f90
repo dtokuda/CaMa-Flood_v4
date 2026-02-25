@@ -6,6 +6,8 @@ module heatlink_river_mod
     use YOS_CMF_MAP, only: &
     &   NSEQMAX
 
+    use phys_const_mod, only: &
+    &   TMELT
     use input_mod, only: &
     &   update_input, get_input
     use output_mod, only: &
