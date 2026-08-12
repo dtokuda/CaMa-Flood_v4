@@ -21,9 +21,12 @@ MODULE CMF_CTRL_FORCING_MOD
 !  distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
 ! See the License for the specific language governing permissions and limitations under the License.
 !==========================================================
-USE PARKIND1,                ONLY: JPIM, JPRB, JPRM
+USE PARKIND1,                ONLY: JPIM, JPIB, JPRB, JPRM
 USE YOS_CMF_INPUT,           ONLY: LOGNAM
 USE YOS_CMF_MAP,             ONLY: INPX, INPY, INPA, INPXI, INPYI, INPAI, INPNI
+#ifdef UseCDF_CMF
+USE CMF_CF_TIME_MOD,         ONLY: CF_TIME_AXIS, CF_RESOLVE_TIME_RECORD
+#endif
 !============================
 IMPLICIT NONE
 SAVE
@@ -51,10 +54,10 @@ CHARACTER(LEN=256)              :: CVNTIME             !! Netcdf VARNAME of time
 CHARACTER(LEN=256)              :: CVNROF              !! NetCDF VARNAME of runoff. Default "runoff"/
 CHARACTER(LEN=256)              :: CVNSUB              !! NetCDF VARNAME of sub-surface runoff.
 
-INTEGER(KIND=JPIM)              :: SYEARIN             !! START YEAR IN NETCDF INPUT RUNOFF
-INTEGER(KIND=JPIM)              :: SMONIN              !! START MONTH IN NETCDF INPUT RUNOFF
-INTEGER(KIND=JPIM)              :: SDAYIN              !! START DAY IN NETCDF INPUT RUNOFF
-INTEGER(KIND=JPIM)              :: SHOURIN             !! START HOUR IN NETCDF INPUT RUNOFF 
+INTEGER(KIND=JPIM)              :: SYEARIN             !! first-record year; <=0 reads CF time metadata
+INTEGER(KIND=JPIM)              :: SMONIN              !! first-record month for explicit legacy mode
+INTEGER(KIND=JPIM)              :: SDAYIN              !! first-record day for explicit legacy mode
+INTEGER(KIND=JPIM)              :: SHOURIN             !! first-record hour for explicit legacy mode
 
 NAMELIST/NFORCE/   LINTERP, LINPEND, LINPDAY, LINPCDF, LITRPCDF, CINPMAT, DROFUNIT, &
                     CROFDIR,CROFPRE, CROFSUF, CSUBDIR,  CSUBPRE, CSUBSUF, &
@@ -71,6 +74,8 @@ CHARACTER(LEN=256)              :: CVAR(3)     !! netCDF variable name
 INTEGER(KIND=JPIM)              :: NCID        !! netCDF file     ID
 INTEGER(KIND=JPIM)              :: NVARID(3)   !! netCDF variable ID
 INTEGER(KIND=JPIM)              :: NSTART      !! Start date of netNDF (in KMIN)
+INTEGER(KIND=JPIM)              :: NRECSTART   !! record corresponding to simulation start
+LOGICAL                         :: LAUTOTIME    !! true: use the NetCDF CF time axis
 END TYPE TYPEROF
 TYPE(TYPEROF)                   :: ROFCDF      !! Derived type for Runoff input 
 #endif
@@ -126,7 +131,7 @@ IF( LROSPLIT )THEN
   CVNSUB="Qsb"
 ENDIF
 
-SYEARIN=0                       !! netCDF input file start date (set to 0 when not used)
+SYEARIN=0                       !! <=0: derive the input record from NetCDF CF time metadata
 SMONIN =0
 SDAYIN =0
 SHOURIN=0
@@ -160,7 +165,11 @@ IF( .not. LINPCDF )THEN !! plain binary
 ELSE
   IF( .not. LINPDAY )THEN
     WRITE(LOGNAM,*)   "CROFCDF:   ", TRIM(CROFCDF)
-    WRITE(LOGNAM,*)   "SYEARIN,SMONIN,SDAYIN,SHOURIN ", SYEARIN,SMONIN,SDAYIN,SHOURIN
+    IF ( SYEARIN > 0 ) THEN
+      WRITE(LOGNAM,*) "SYEARIN,SMONIN,SDAYIN,SHOURIN ", SYEARIN,SMONIN,SDAYIN,SHOURIN
+    ELSE
+      WRITE(LOGNAM,*) "forcing start time: read from NetCDF CF time metadata"
+    ENDIF
   ENDIF
   WRITE(LOGNAM,*)   "CVNTIME:   ", TRIM(CVNTIME)
   WRITE(LOGNAM,*)   "CVNROF:    ", TRIM(CVNROF)
@@ -235,24 +244,26 @@ CONTAINS
 !==========================================================
 #ifdef UseCDF_CMF
 SUBROUTINE CMF_FORCING_INIT_CDF
-USE YOS_CMF_INPUT,           ONLY: LROSPLIT,  LWEVAP,    DTIN
-USE YOS_CMF_TIME,            ONLY: KMINSTAIN, KMINSTART, KMINEND
+USE YOS_CMF_INPUT,           ONLY: LROSPLIT, LWEVAP, DTIN, LLEAPYR
+USE YOS_CMF_TIME,            ONLY: KMINSTAIN, KMINSTART, KMINEND, ISYYYYMMDD, ISHOUR, ISMIN
 USE CMF_UTILS_MOD,           ONLY: NCERROR,   DATE2MIN
 USE NETCDF
 IMPLICIT NONE
 !* Local Variables 
 INTEGER(KIND=JPIM)              :: NTIMEID,NCDFSTP
 INTEGER(KIND=JPIM)              :: KMINENDIN
+INTEGER(KIND=JPIM)              :: IERR,NREQUIRED
+CHARACTER(LEN=256)              :: CMESSAGE
+TYPE(CF_TIME_AXIS)              :: ROF_TIME_AXIS
 !================================================
 IF( .not. LINPDAY ) THEN !! only one input file during simulation period
 
-  !*** 1. calculate KMINSTAINP (start KMIN for forcing)
-  KMINSTAIN=DATE2MIN(SYEARIN*10000+SMONIN*100+SDAYIN,SHOURIN*100)
-
-  !*** 2. Initialize Type for Runoff CDF:
+  !*** 1. Initialize Type for Runoff CDF:
   ROFCDF%CNAME=TRIM(CROFCDF)
   ROFCDF%CVAR(1)=TRIM(CVNROF)
   ROFCDF%CVAR(2)=TRIM(CVNSUB)
+  ROFCDF%LAUTOTIME=(SYEARIN<=0)
+  ROFCDF%NRECSTART=1
   IF ( .not. LROSPLIT ) THEN
     ROFCDF%CVAR(2)="NONE"
     ROFCDF%NVARID(2)=-1
@@ -262,10 +273,9 @@ IF( .not. LINPDAY ) THEN !! only one input file during simulation period
     ROFCDF%NVARID(3)=-1
   ENDIF 
 
-  ROFCDF%NSTART=KMINSTAIN
   WRITE(LOGNAM,*) "CMF::FORCING_INIT_CDF:", TRIM(ROFCDF%CNAME), TRIM(ROFCDF%CVAR(1))
   
-  !*** 3. Open netCDF ruoff file
+  !*** 2. Open netCDF runoff file
   CALL NCERROR( NF90_OPEN(TRIM(ROFCDF%CNAME),NF90_NOWRITE,ROFCDF%NCID),'OPENING :'//ROFCDF%CNAME )
   CALL NCERROR( NF90_INQ_VARID(ROFCDF%NCID,TRIM(ROFCDF%CVAR(1)),ROFCDF%NVARID(1)) )
   
@@ -280,16 +290,38 @@ IF( .not. LINPDAY ) THEN !! only one input file during simulation period
   
   WRITE(LOGNAM,*) "CMF::FORCING_INIT_CDF: CNAME,NCID,VARID", TRIM(ROFCDF%CNAME),ROFCDF%NCID,ROFCDF%NVARID(1)
   
-  !*** 4. check runoff forcing time 
-  IF ( KMINSTART .LT. KMINSTAIN ) THEN 
-    WRITE(LOGNAM,*) "Run start earlier than forcing data", TRIM(ROFCDF%CNAME), KMINSTART, KMINSTAIN
-    STOP 9
-  ENDIF
-  
-  KMINENDIN=KMINSTAIN + NCDFSTP*INT(DTIN/60,JPIM)
-  IF ( KMINEND .GT. KMINENDIN  ) THEN 
-    WRITE(LOGNAM,*) "Run end later than forcing data", TRIM(ROFCDF%CNAME), KMINEND, KMINENDIN
-    STOP 9
+  !*** 3. Resolve and check runoff forcing time
+  IF ( ROFCDF%LAUTOTIME ) THEN
+    CALL CF_RESOLVE_TIME_RECORD(ROFCDF%NCID,TRIM(CVNTIME),ISYYYYMMDD,ISHOUR,ISMIN,LLEAPYR, &
+                              & INT(DTIN,KIND=JPIM),NCDFSTP,ROF_TIME_AXIS,ROFCDF%NRECSTART,IERR,CMESSAGE)
+    IF ( IERR/=0 ) THEN
+      WRITE(LOGNAM,*) "Cannot resolve runoff NetCDF CF time: ",TRIM(CMESSAGE)
+      STOP 9
+    ENDIF
+    KMINSTAIN=KMINSTART
+    ROFCDF%NSTART=KMINSTART
+    NREQUIRED=INT((INT(KMINEND-KMINSTART,KIND=JPIB)*60_JPIB+INT(DTIN,KIND=JPIB)-1_JPIB) &
+                 & /INT(DTIN,KIND=JPIB),KIND=JPIM)
+    IF ( ROFCDF%NRECSTART+NREQUIRED-1>NCDFSTP ) THEN
+      WRITE(LOGNAM,*) "Run end later than forcing data",ROFCDF%NRECSTART,NREQUIRED,NCDFSTP
+      STOP 9
+    ENDIF
+    WRITE(LOGNAM,*) "NetCDF CF time units: ",TRIM(ROF_TIME_AXIS%UNITS)
+    WRITE(LOGNAM,*) "NetCDF CF calendar: ",TRIM(ROF_TIME_AXIS%CALENDAR)
+    WRITE(LOGNAM,*) "NetCDF forcing interval [min]: ",ROF_TIME_AXIS%DT_MINUTES
+    WRITE(LOGNAM,*) "NetCDF record at simulation start: ",ROFCDF%NRECSTART
+  ELSE
+    KMINSTAIN=DATE2MIN(SYEARIN*10000+SMONIN*100+SDAYIN,SHOURIN*100)
+    ROFCDF%NSTART=KMINSTAIN
+    IF ( KMINSTART .LT. KMINSTAIN ) THEN
+      WRITE(LOGNAM,*) "Run start earlier than forcing data",TRIM(ROFCDF%CNAME),KMINSTART,KMINSTAIN
+      STOP 9
+    ENDIF
+    KMINENDIN=KMINSTAIN+NCDFSTP*INT(DTIN/60,JPIM)
+    IF ( KMINEND .GT. KMINENDIN ) THEN
+      WRITE(LOGNAM,*) "Run end later than forcing data",TRIM(ROFCDF%CNAME),KMINEND,KMINENDIN
+      STOP 9
+    ENDIF
   ENDIF
 ENDIF
 
@@ -571,7 +603,7 @@ END SUBROUTINE CMF_FORCING_GET_BIN
 SUBROUTINE CMF_FORCING_GET_CDF(PBUFF)
 ! Read forcing data from netcdf
 ! -- call from CMF_FORCING_GET
-USE YOS_CMF_TIME,            ONLY: KMIN, IYYYYMMDD, IHHMM, IYYYY, IMM, IDD, IHOUR, IMIN
+USE YOS_CMF_TIME,            ONLY: KMIN, KMINSTART, IYYYYMMDD, IHHMM, IYYYY, IMM, IDD, IHOUR, IMIN
 USE YOS_CMF_INPUT,           ONLY: DTIN, NXIN, NYIN
 USE CMF_UTILS_MOD,           ONLY: NCERROR,   DATE2MIN
 USE NETCDF
@@ -631,7 +663,11 @@ IF( LINPDAY )THEN  !! for daily input file
 !========= 
 ELSE !! LINPDAY=.false. : one runoff input file during simulation period
   !*** 1. calculate irec
-  IRECINP=INT( (KMIN-ROFCDF%NSTART)*60_JPIM,JPIM ) / INT(DTIN,JPIM) + 1     !! (second from netcdf start time) / (input time step)
+  IF ( ROFCDF%LAUTOTIME ) THEN
+    IRECINP=ROFCDF%NRECSTART+INT((KMIN-KMINSTART)*60_JPIM,JPIM)/INT(DTIN,JPIM)
+  ELSE
+    IRECINP=INT((KMIN-ROFCDF%NSTART)*60_JPIM,JPIM)/INT(DTIN,JPIM)+1
+  ENDIF
   
   !*** 2. read runoff
   CALL NCERROR( NF90_GET_VAR(ROFCDF%NCID,ROFCDF%NVARID(1),PBUFF(:,:,1),(/1,1,IRECINP/),(/NXIN,NYIN,1/)),'READING RUNOFF 1 ' )

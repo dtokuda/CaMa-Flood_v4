@@ -31,10 +31,10 @@ class ForcingTests(unittest.TestCase):
         self.assertEqual(report["missing_count"], 1)
 
     def test_calendar_mapping(self) -> None:
-        self.assertEqual(calendar_to_lleapyr("365_day"), ".TRUE.")
-        self.assertEqual(calendar_to_lleapyr("noleap"), ".TRUE.")
-        self.assertEqual(calendar_to_lleapyr("gregorian"), ".FALSE.")
-        self.assertEqual(calendar_to_lleapyr("proleptic_gregorian"), ".FALSE.")
+        self.assertEqual(calendar_to_lleapyr("365_day"), ".FALSE.")
+        self.assertEqual(calendar_to_lleapyr("noleap"), ".FALSE.")
+        self.assertEqual(calendar_to_lleapyr("gregorian"), ".TRUE.")
+        self.assertEqual(calendar_to_lleapyr("proleptic_gregorian"), ".TRUE.")
         with self.assertRaisesRegex(ValueError, "unsupported calendar"):
             calendar_to_lleapyr("360_day")
 

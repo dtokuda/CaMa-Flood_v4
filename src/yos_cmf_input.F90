@@ -59,7 +59,7 @@ LOGICAL                         :: LOUTPUT                 !! true: use standard
 LOGICAL                         :: LOUTINI                 !! true: output initial storage (netCDF only)
 
 LOGICAL                         :: LGRIDMAP                !! true: for standard XY gridded 2D map
-LOGICAL                         :: LLEAPYR                 !! true: neglect leap year (Feb29 skipped)
+LOGICAL                         :: LLEAPYR                 !! true: use Gregorian leap years (Feb29 included)
 LOGICAL                         :: LMAPEND                 !! true: for map data endian conversion
 LOGICAL                         :: LBITSAFE                !! true: for Bit Identical (removed from v410, set in Mkinclude)
 LOGICAL                         :: LSTG_ES                 !! true: for Vector Processor optimization (CMF_OPT_FLDSTG_ES) 

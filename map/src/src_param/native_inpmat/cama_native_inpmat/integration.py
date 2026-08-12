@@ -131,11 +131,18 @@ def _namelist(
     restart_path: Path | None = None,
 ) -> str:
     year, month, day = start
-    forcing_year, forcing_month, forcing_day = forcing_start or start
     end = date(year, month, day) + timedelta(days=days)
     lleapyr = calendar_to_lleapyr(calendar)
     restart_enabled = ".TRUE." if restart_path else ".FALSE."
     restart_value = str(restart_path) if restart_path else ""
+    if forcing_start is None:
+        forcing_time_namelist = "! forcing start time is read from NetCDF CF metadata"
+    else:
+        forcing_year, forcing_month, forcing_day = forcing_start
+        forcing_time_namelist = f"""SYEARIN  = {forcing_year}
+SMONIN   = {forcing_month}
+SDAYIN   = {forcing_day}
+SHOURIN  = 0"""
     return f"""&NRUNVER
 LADPSTP  = .TRUE.
 LPTHOUT  = .FALSE.
@@ -195,10 +202,7 @@ CINPMAT  = "{inpmat}"
 CROFCDF  = "{forcing}"
 CVNTIME  = "time"
 CVNROF   = "{variable_name}"
-SYEARIN  = {forcing_year}
-SMONIN   = {forcing_month}
-SDAYIN   = {forcing_day}
-SHOURIN  = 0
+{forcing_time_namelist}
 /
 &NOUTPUT
 COUTDIR  = "./"
@@ -239,8 +243,11 @@ def _run_case(executable: Path, case_dir: Path, namelist: str) -> None:
     log = completed.stdout + completed.stderr
     (case_dir / "stdout.log").write_text(log)
     if completed.returncode != 0:
+        cama_log_path = case_dir / "log_CaMa.txt"
+        cama_log = cama_log_path.read_text(errors="replace") if cama_log_path.is_file() else ""
         raise RuntimeError(
-            f"CaMa failed in {case_dir} with code {completed.returncode}:\n{log[-4000:]}"
+            f"CaMa failed in {case_dir} with code {completed.returncode}:\n"
+            f"{(log + cama_log)[-8000:]}"
         )
 
 

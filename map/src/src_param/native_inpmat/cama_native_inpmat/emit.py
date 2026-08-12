@@ -13,16 +13,16 @@ from .config import (
     configured_validation_reference_dir,
     resolve_input_files,
 )
-from .forcing import forcing_start_date, validate_forcing_collection
+from .forcing import validate_forcing_collection
 from .grid import read_rectilinear_grid
 from .inventory import inspect_input
 
 
 def calendar_to_lleapyr(calendar: str) -> str:
     if calendar in {"365_day", "noleap"}:
-        return ".TRUE."
-    if calendar in {"gregorian", "proleptic_gregorian", "standard"}:
         return ".FALSE."
+    if calendar in {"gregorian", "proleptic_gregorian", "standard"}:
+        return ".TRUE."
     raise ValueError(f"unsupported calendar: {calendar}")
 
 
@@ -48,7 +48,6 @@ def emit_input_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(
             f"{config['output']['dirname']}: validation forcing and mapping grids differ"
         )
-    year, month, day = forcing_start_date(reference_file, variable)
     artifact_dir = output_dir
     values = {
         "OUTPUT_DIRNAME": config["output"]["dirname"],
@@ -63,9 +62,9 @@ def emit_input_config(config: dict[str, Any]) -> dict[str, Any]:
         "CAMA_CVNTIME": "time",
         "CAMA_CVNROF": variable,
         "CAMA_LLEAPYR": calendar_to_lleapyr(str(metadata["calendar"])),
-        "CAMA_SYEARIN": year,
-        "CAMA_SMONIN": month,
-        "CAMA_SDAYIN": day,
+        "CAMA_SYEARIN": 0,
+        "CAMA_SMONIN": 0,
+        "CAMA_SDAYIN": 0,
         "CAMA_SHOURIN": 0,
         "CAMA_REFERENCE_CROFCDF": reference_file,
     }
