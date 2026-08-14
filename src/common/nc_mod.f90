@@ -7,10 +7,10 @@ module nc_mod
     use datetime_mod, only: &
     &   DateTime
     use cmf_cf_time_mod, only: &
-    &   CFTimeAxis => CF_TIME_AXIS, &
-    &   read_cf_time_axis => CF_READ_TIME_AXIS, &
-    &   find_cf_time_record => CF_FIND_TIME_RECORD, &
-    &   calendar_matches_lleapyr => CF_CALENDAR_MATCHES_LLEAPYR
+    &   cf_time_axis, &
+    &   cf_read_time_axis, &
+    &   cf_find_time_record, &
+    &   cf_calendar_matches_lleapyr
     use netcdf
     implicit none
 
@@ -21,7 +21,7 @@ module nc_mod
         &   shape(:)
         character(len=64) :: &
         &   time_name = ''
-        type(CFTimeAxis) :: &
+        type(cf_time_axis) :: &
         &   time_axis
     end type NCConfig
 
@@ -91,7 +91,7 @@ type(NCConfig) function init_ncconfig(path, varname)
     &   name=init_ncconfig%time_name, len=init_ncconfig%time_len))
     call handle_error(nf90_inq_varid( &
     &   init_ncconfig%ncid, trim(init_ncconfig%time_name), init_ncconfig%time_varid))
-    call read_cf_time_axis( &
+    call cf_read_time_axis( &
     &   init_ncconfig%ncid, trim(init_ncconfig%time_name), &
     &   init_ncconfig%time_axis, ierr, message)
     if (ierr /= 0_JPIM) then
@@ -104,7 +104,7 @@ type(NCConfig) function init_ncconfig(path, varname)
         &   init_ncconfig%time_axis%ntime, ', data time dimension length=', init_ncconfig%time_len
         stop 9
     endif
-    calendar_ok = calendar_matches_lleapyr( &
+    calendar_ok = cf_calendar_matches_lleapyr( &
     &   init_ncconfig%time_axis%calendar, LLEAPYR, ierr, message)
     if (ierr /= 0_JPIM .or. .not. calendar_ok) then
         write(LOGNAM, '(3a,l1)') '[nc_mod/init_ncconfig ERROR] calendar=', &
@@ -179,7 +179,7 @@ integer(kind=JPIM) function get_nc_start_record(ncconf, start_dt) result(record)
     character(len=256) :: &
     &   message
 
-    call find_cf_time_record( &
+    call cf_find_time_record( &
     &   ncconf%time_axis, start_dt%yyyymmdd, start_dt%hour, 0_JPIM, &
     &   record, ierr, message, .TRUE.)
     if (ierr /= 0_JPIM) then

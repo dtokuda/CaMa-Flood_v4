@@ -1,682 +1,683 @@
-MODULE CMF_CF_TIME_MOD
+module cmf_cf_time_mod
 !==========================================================
-!* PURPOSE: Read and validate CF-compliant NetCDF time axes.
-!*
-!* The top-level Makefile compiles this source directly so the legacy
-!* reader can share it with src/common + src/io without making the
-!* optional libcommon archive mandatory for a standard build.
+    !* PURPOSE: Read and validate CF-compliant NetCDF time axes.
+    !*
+    !* The top-level Makefile compiles this source directly so the legacy
+    !* reader can share it with src/common + src/io without making the
+    !* optional libcommon archive mandatory for a standard build.
 !==========================================================
-USE PARKIND1, ONLY: JPIM, JPIB, JPRD
+    use parkind1, only: JPIM, JPIB, JPRD
 #ifdef UseCDF_CMF
-USE NETCDF
+    use netcdf
 #endif
-IMPLICIT NONE
-PRIVATE
+    implicit none
+    private
 
-INTEGER, PARAMETER :: CF_STRLEN = 256
-INTEGER, PARAMETER :: CAL_GREGORIAN = 1
-INTEGER, PARAMETER :: CAL_NOLEAP = 2
+    integer, parameter :: CF_STRLEN = 256
+    integer, parameter :: CAL_GREGORIAN = 1
+    integer, parameter :: CAL_NOLEAP = 2
 
-TYPE, PUBLIC :: CF_TIME_AXIS
-  INTEGER(KIND=JPIM) :: NTIME = 0
-  INTEGER(KIND=JPIB) :: DT_MINUTES = 0_JPIB
-  LOGICAL :: HAS_BOUNDS = .FALSE.
-  CHARACTER(LEN=CF_STRLEN) :: UNITS = ''
-  CHARACTER(LEN=32) :: CALENDAR = ''
-  INTEGER(KIND=JPIB), ALLOCATABLE :: CENTER_MINUTES(:)
-  INTEGER(KIND=JPIB), ALLOCATABLE :: LOWER_MINUTES(:)
-  INTEGER(KIND=JPIB), ALLOCATABLE :: UPPER_MINUTES(:)
-END TYPE CF_TIME_AXIS
+    type, public :: cf_time_axis
+        integer(kind=JPIM) :: ntime = 0
+        integer(kind=JPIB) :: dt_minutes = 0_JPIB
+        logical :: has_bounds = .false.
+        character(len=CF_STRLEN) :: units = ''
+        character(len=32) :: calendar = ''
+        integer(kind=JPIB), allocatable :: center_minutes(:)
+        integer(kind=JPIB), allocatable :: lower_minutes(:)
+        integer(kind=JPIB), allocatable :: upper_minutes(:)
+    end type cf_time_axis
 
-PUBLIC :: CF_DATETIME_TO_MINUTES
-PUBLIC :: CF_FIND_TIME_RECORD
-PUBLIC :: CF_CALENDAR_MATCHES_LLEAPYR
-PUBLIC :: CF_CALENDAR_USES_LEAP_DAY
+    public :: cf_datetime_to_minutes
+    public :: cf_find_time_record
+    public :: cf_calendar_matches_lleapyr
+    public :: cf_calendar_uses_leap_day
 #ifdef UseCDF_CMF
-PUBLIC :: CF_READ_TIME_AXIS
-PUBLIC :: CF_RESOLVE_TIME_RECORD
-#endif
-
-CONTAINS
-
-!####################################################################
-PURE FUNCTION LOWERCASE(TEXT) RESULT(LOWER)
-CHARACTER(LEN=*), INTENT(IN) :: TEXT
-CHARACTER(LEN=LEN(TEXT)) :: LOWER
-INTEGER :: I, CODE
-
-LOWER=TEXT
-DO I=1,LEN(TEXT)
-  CODE=IACHAR(TEXT(I:I))
-  IF ( CODE>=IACHAR('A') .AND. CODE<=IACHAR('Z') ) LOWER(I:I)=ACHAR(CODE+32)
-ENDDO
-END FUNCTION LOWERCASE
-!####################################################################
-
-!####################################################################
-PURE FUNCTION SANITIZE_STRING(TEXT) RESULT(CLEAN)
-CHARACTER(LEN=*), INTENT(IN) :: TEXT
-CHARACTER(LEN=LEN(TEXT)) :: CLEAN
-INTEGER :: I
-
-CLEAN=TEXT
-DO I=1,LEN(TEXT)
-  IF ( IACHAR(CLEAN(I:I))==0 ) CLEAN(I:I)=' '
-ENDDO
-END FUNCTION SANITIZE_STRING
-!####################################################################
-
-!####################################################################
-SUBROUTINE SET_ERROR(IERR,MESSAGE,TEXT)
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-CHARACTER(LEN=*), INTENT(IN) :: TEXT
-
-IERR=1
-MESSAGE=TRIM(TEXT)
-END SUBROUTINE SET_ERROR
-!####################################################################
-
-!####################################################################
-SUBROUTINE NORMALIZE_CALENDAR(CALENDAR,ICAL,NORMALIZED,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: CALENDAR
-INTEGER, INTENT(OUT) :: ICAL
-CHARACTER(LEN=*), INTENT(OUT) :: NORMALIZED
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-CHARACTER(LEN=32) :: CAL
-
-IERR=0
-MESSAGE=''
-ICAL=0
-NORMALIZED=''
-CAL=TRIM(LOWERCASE(ADJUSTL(SANITIZE_STRING(CALENDAR))))
-IF ( LEN_TRIM(CAL)==0 ) CAL='standard'
-
-SELECT CASE (TRIM(CAL))
-CASE ('gregorian','standard','proleptic_gregorian')
-  ICAL=CAL_GREGORIAN
-  NORMALIZED=TRIM(CAL)
-CASE ('365_day','noleap')
-  ICAL=CAL_NOLEAP
-  NORMALIZED=TRIM(CAL)
-CASE DEFAULT
-  CALL SET_ERROR(IERR,MESSAGE,'unsupported CF calendar: '//TRIM(CAL))
-END SELECT
-END SUBROUTINE NORMALIZE_CALENDAR
-!####################################################################
-
-!####################################################################
-PURE LOGICAL FUNCTION IS_GREGORIAN_LEAP_YEAR(YEAR)
-INTEGER(KIND=JPIM), INTENT(IN) :: YEAR
-
-IS_GREGORIAN_LEAP_YEAR = MOD(YEAR,400_JPIM)==0_JPIM .OR. &
-                       &(MOD(YEAR,4_JPIM)==0_JPIM .AND. MOD(YEAR,100_JPIM)/=0_JPIM)
-END FUNCTION IS_GREGORIAN_LEAP_YEAR
-!####################################################################
-
-!####################################################################
-SUBROUTINE DATE_PARTS_TO_MINUTES(YEAR,MONTH,DAY,HOUR,MINUTE,ICAL,VALUE,IERR,MESSAGE)
-INTEGER(KIND=JPIM), INTENT(IN) :: YEAR,MONTH,DAY,HOUR,MINUTE
-INTEGER, INTENT(IN) :: ICAL
-INTEGER(KIND=JPIB), INTENT(OUT) :: VALUE
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER(KIND=JPIM) :: MONTH_DAYS(12), IMON
-INTEGER(KIND=JPIB) :: DAYS
-
-IERR=0
-MESSAGE=''
-VALUE=0_JPIB
-IF ( YEAR<1 .OR. MONTH<1 .OR. MONTH>12 .OR. HOUR<0 .OR. HOUR>23 .OR. MINUTE<0 .OR. MINUTE>59 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'invalid datetime component in CF time metadata')
-  RETURN
-ENDIF
-
-MONTH_DAYS=(/31,28,31,30,31,30,31,31,30,31,30,31/)
-IF ( ICAL==CAL_GREGORIAN .AND. IS_GREGORIAN_LEAP_YEAR(YEAR) ) MONTH_DAYS(2)=29
-IF ( DAY<1 .OR. DAY>MONTH_DAYS(MONTH) ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'invalid day for CF calendar')
-  RETURN
-ENDIF
-
-IF ( ICAL==CAL_NOLEAP ) THEN
-  DAYS=INT(YEAR-1,KIND=JPIB)*365_JPIB
-ELSE
-  DAYS=INT(YEAR-1,KIND=JPIB)*365_JPIB + INT((YEAR-1)/4,KIND=JPIB) &
-      &-INT((YEAR-1)/100,KIND=JPIB)+INT((YEAR-1)/400,KIND=JPIB)
-ENDIF
-DO IMON=1,MONTH-1
-  DAYS=DAYS+INT(MONTH_DAYS(IMON),KIND=JPIB)
-ENDDO
-DAYS=DAYS+INT(DAY-1,KIND=JPIB)
-VALUE=(DAYS*24_JPIB+INT(HOUR,KIND=JPIB))*60_JPIB+INT(MINUTE,KIND=JPIB)
-END SUBROUTINE DATE_PARTS_TO_MINUTES
-!####################################################################
-
-!####################################################################
-SUBROUTINE CF_DATETIME_TO_MINUTES(CALENDAR,YYYYMMDD,HOUR,MINUTE,VALUE,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: CALENDAR
-INTEGER(KIND=JPIM), INTENT(IN) :: YYYYMMDD,HOUR,MINUTE
-INTEGER(KIND=JPIB), INTENT(OUT) :: VALUE
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER :: ICAL
-INTEGER(KIND=JPIM) :: YEAR,MONTH,DAY
-CHARACTER(LEN=32) :: NORMALIZED
-
-ICAL=0
-CALL NORMALIZE_CALENDAR(CALENDAR,ICAL,NORMALIZED,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-YEAR=YYYYMMDD/10000_JPIM
-MONTH=MOD(YYYYMMDD/100_JPIM,100_JPIM)
-DAY=MOD(YYYYMMDD,100_JPIM)
-CALL DATE_PARTS_TO_MINUTES(YEAR,MONTH,DAY,HOUR,MINUTE,ICAL,VALUE,IERR,MESSAGE)
-END SUBROUTINE CF_DATETIME_TO_MINUTES
-!####################################################################
-
-#ifdef UseCDF_CMF
-!####################################################################
-SUBROUTINE PARSE_REFERENCE_DATETIME(TEXT,ICAL,REFERENCE_MINUTES,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: TEXT
-INTEGER, INTENT(IN) :: ICAL
-INTEGER(KIND=JPIB), INTENT(OUT) :: REFERENCE_MINUTES
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-CHARACTER(LEN=CF_STRLEN) :: REF,TIMEZONE,TZCOMPACT
-INTEGER(KIND=JPIM) :: YEAR,MONTH,DAY,HOUR,MINUTE,SECOND,TZHOUR,TZMINUTE,TZOFFSET
-INTEGER :: IOS, N, I, J, TZSIGN, TZSTART
-
-IERR=0
-MESSAGE=''
-REFERENCE_MINUTES=0_JPIB
-REF=ADJUSTL(TEXT)
-N=LEN_TRIM(REF)
-TIMEZONE=''
-TZSTART=0
-DO I=11,N
-  IF ( REF(I:I)=='+' .OR. REF(I:I)=='-' ) THEN
-    TZSTART=I
-    EXIT
-  ENDIF
-ENDDO
-IF ( TZSTART==0 .AND. N>=1 ) THEN
-  IF ( REF(N:N)=='Z' .OR. REF(N:N)=='z' ) TZSTART=N
-ENDIF
-IF ( TZSTART==0 .AND. N>=3 ) THEN
-  IF ( LOWERCASE(REF(N-2:N))=='utc' ) TZSTART=N-2
-ENDIF
-IF ( TZSTART>0 ) THEN
-  TIMEZONE=TRIM(ADJUSTL(REF(TZSTART:N)))
-  REF(TZSTART:N)=' '
-  N=LEN_TRIM(REF)
-ENDIF
-IF ( N<10 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'invalid reference datetime in CF time units: '//TRIM(REF))
-  RETURN
-ENDIF
-IF ( REF(5:5)/='-' .OR. REF(8:8)/='-' ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'CF reference date must use YYYY-MM-DD: '//TRIM(REF))
-  RETURN
-ENDIF
-
-READ(REF(1:4),'(I4)',IOSTAT=IOS) YEAR
-IF ( IOS/=0 ) GOTO 900
-READ(REF(6:7),'(I2)',IOSTAT=IOS) MONTH
-IF ( IOS/=0 ) GOTO 900
-READ(REF(9:10),'(I2)',IOSTAT=IOS) DAY
-IF ( IOS/=0 ) GOTO 900
-HOUR=0
-MINUTE=0
-SECOND=0
-IF ( N>=13 ) THEN
-  IF ( REF(11:11)=='T' .OR. REF(11:11)=='t' ) REF(11:11)=' '
-  IF ( REF(11:11)/=' ' ) GOTO 900
-  READ(REF(12:13),'(I2)',IOSTAT=IOS) HOUR
-  IF ( IOS/=0 ) GOTO 900
-ENDIF
-IF ( N>=16 ) THEN
-  IF ( REF(14:14)/=':' ) GOTO 900
-  READ(REF(15:16),'(I2)',IOSTAT=IOS) MINUTE
-  IF ( IOS/=0 ) GOTO 900
-ENDIF
-IF ( N>=19 ) THEN
-  IF ( REF(17:17)/=':' ) GOTO 900
-  READ(REF(18:19),'(I2)',IOSTAT=IOS) SECOND
-  IF ( IOS/=0 ) GOTO 900
-ENDIF
-IF ( N/=10 .AND. N/=13 .AND. N/=16 .AND. N/=19 ) GOTO 900
-IF ( SECOND/=0 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'CF reference time must align to a whole minute: '//TRIM(REF))
-  RETURN
-ENDIF
-CALL DATE_PARTS_TO_MINUTES(YEAR,MONTH,DAY,HOUR,MINUTE,ICAL,REFERENCE_MINUTES,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-
-! CF reference datetimes may include a time-zone suffix. Convert the
-! local reference time to UTC: UTC = local time - UTC offset.
-TZOFFSET=0_JPIM
-IF ( LEN_TRIM(TIMEZONE)>0 ) THEN
-  IF ( TRIM(LOWERCASE(TIMEZONE))/='z' .AND. TRIM(LOWERCASE(TIMEZONE))/='utc' ) THEN
-    IF ( TIMEZONE(1:1)=='+' ) THEN
-      TZSIGN=1
-    ELSEIF ( TIMEZONE(1:1)=='-' ) THEN
-      TZSIGN=-1
-    ELSE
-      CALL SET_ERROR(IERR,MESSAGE,'unsupported CF reference-time timezone: '//TRIM(TIMEZONE))
-      RETURN
-    ENDIF
-    TZCOMPACT=''
-    J=0
-    DO I=2,LEN_TRIM(TIMEZONE)
-      IF ( TIMEZONE(I:I)==':' ) CYCLE
-      J=J+1
-      TZCOMPACT(J:J)=TIMEZONE(I:I)
-    ENDDO
-    IF ( J/=2 .AND. J/=4 ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF timezone must be Z, UTC, +/-HH, +/-HHMM, or +/-HH:MM')
-      RETURN
-    ENDIF
-    READ(TZCOMPACT(1:2),'(I2)',IOSTAT=IOS) TZHOUR
-    IF ( IOS/=0 ) GOTO 910
-    TZMINUTE=0_JPIM
-    IF ( J==4 ) THEN
-      READ(TZCOMPACT(3:4),'(I2)',IOSTAT=IOS) TZMINUTE
-      IF ( IOS/=0 ) GOTO 910
-    ENDIF
-    IF ( TZHOUR>23 .OR. TZMINUTE>59 ) GOTO 910
-    TZOFFSET=TZSIGN*(TZHOUR*60_JPIM+TZMINUTE)
-  ENDIF
-ENDIF
-REFERENCE_MINUTES=REFERENCE_MINUTES-INT(TZOFFSET,KIND=JPIB)
-RETURN
-
-900 CONTINUE
-CALL SET_ERROR(IERR,MESSAGE,'cannot parse reference datetime in CF time units: '//TRIM(REF))
-RETURN
-910 CONTINUE
-CALL SET_ERROR(IERR,MESSAGE,'invalid CF reference-time timezone: '//TRIM(TIMEZONE))
-END SUBROUTINE PARSE_REFERENCE_DATETIME
-!####################################################################
-
-!####################################################################
-SUBROUTINE PARSE_CF_UNITS(UNITS,CALENDAR,UNIT_MINUTES,REFERENCE_MINUTES,NORMALIZED_CALENDAR,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: UNITS,CALENDAR
-REAL(KIND=JPRD), INTENT(OUT) :: UNIT_MINUTES
-INTEGER(KIND=JPIB), INTENT(OUT) :: REFERENCE_MINUTES
-CHARACTER(LEN=*), INTENT(OUT) :: NORMALIZED_CALENDAR
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-CHARACTER(LEN=CF_STRLEN) :: LOWER_UNITS, UNIT_NAME, REFERENCE_TEXT
-INTEGER :: ISINCE,ICAL
-
-IERR=0
-MESSAGE=''
-LOWER_UNITS=TRIM(LOWERCASE(ADJUSTL(SANITIZE_STRING(UNITS))))
-ISINCE=INDEX(LOWER_UNITS,' since ')
-IF ( ISINCE<=1 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'CF time units must contain " since ": '//TRIM(UNITS))
-  RETURN
-ENDIF
-UNIT_NAME=TRIM(ADJUSTL(LOWER_UNITS(1:ISINCE-1)))
-REFERENCE_TEXT=TRIM(ADJUSTL(SANITIZE_STRING(UNITS(ISINCE+7:))))
-
-SELECT CASE (TRIM(UNIT_NAME))
-CASE ('second','seconds','sec','secs')
-  UNIT_MINUTES=1._JPRD/60._JPRD
-CASE ('minute','minutes','min','mins')
-  UNIT_MINUTES=1._JPRD
-CASE ('hour','hours','hr','hrs')
-  UNIT_MINUTES=60._JPRD
-CASE ('day','days')
-  UNIT_MINUTES=1440._JPRD
-CASE DEFAULT
-  CALL SET_ERROR(IERR,MESSAGE,'unsupported CF time unit: '//TRIM(UNIT_NAME))
-  RETURN
-END SELECT
-
-CALL NORMALIZE_CALENDAR(CALENDAR,ICAL,NORMALIZED_CALENDAR,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-CALL PARSE_REFERENCE_DATETIME(REFERENCE_TEXT,ICAL,REFERENCE_MINUTES,IERR,MESSAGE)
-END SUBROUTINE PARSE_CF_UNITS
-!####################################################################
-
-!####################################################################
-SUBROUTINE VALUES_TO_MINUTES(VALUES,UNIT_MINUTES,REFERENCE_MINUTES,MINUTES,IERR,MESSAGE)
-REAL(KIND=JPRD), INTENT(IN) :: VALUES(:),UNIT_MINUTES
-INTEGER(KIND=JPIB), INTENT(IN) :: REFERENCE_MINUTES
-INTEGER(KIND=JPIB), INTENT(OUT) :: MINUTES(:)
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-REAL(KIND=JPRD) :: OFFSET,ROUNDED
-INTEGER :: I
-
-IERR=0
-MESSAGE=''
-DO I=1,SIZE(VALUES)
-  OFFSET=VALUES(I)*UNIT_MINUTES
-  ROUNDED=ANINT(OFFSET)
-  IF ( ABS(OFFSET-ROUNDED)>1.E-7_JPRD ) THEN
-    CALL SET_ERROR(IERR,MESSAGE,'CF time value does not align to CaMa-Flood whole-minute time')
-    RETURN
-  ENDIF
-  MINUTES(I)=REFERENCE_MINUTES+INT(NINT(OFFSET,KIND=JPIB),KIND=JPIB)
-ENDDO
-END SUBROUTINE VALUES_TO_MINUTES
-!####################################################################
-
-!####################################################################
-SUBROUTINE VALIDATE_TIME_AXIS(AXIS,IERR,MESSAGE)
-TYPE(CF_TIME_AXIS), INTENT(INOUT) :: AXIS
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER :: I
-INTEGER(KIND=JPIB) :: DELTA
-
-IERR=0
-MESSAGE=''
-IF ( AXIS%NTIME<1 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'CF time axis must contain at least one record')
-  RETURN
-ENDIF
-IF ( AXIS%NTIME==1 ) THEN
-  AXIS%DT_MINUTES=0_JPIB
-  IF ( AXIS%HAS_BOUNDS ) THEN
-    IF ( AXIS%LOWER_MINUTES(1)>=AXIS%UPPER_MINUTES(1) ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF time bounds must be strictly increasing within each record')
-      RETURN
-    ENDIF
-    IF ( AXIS%CENTER_MINUTES(1)<AXIS%LOWER_MINUTES(1) .OR. &
-       & AXIS%CENTER_MINUTES(1)>AXIS%UPPER_MINUTES(1) ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF time coordinate lies outside its bounds')
-      RETURN
-    ENDIF
-    AXIS%DT_MINUTES=AXIS%UPPER_MINUTES(1)-AXIS%LOWER_MINUTES(1)
-  ENDIF
-  RETURN
-ENDIF
-AXIS%DT_MINUTES=AXIS%CENTER_MINUTES(2)-AXIS%CENTER_MINUTES(1)
-IF ( AXIS%DT_MINUTES<=0_JPIB ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'CF time axis must be strictly increasing')
-  RETURN
-ENDIF
-DO I=2,AXIS%NTIME
-  DELTA=AXIS%CENTER_MINUTES(I)-AXIS%CENTER_MINUTES(I-1)
-  IF ( DELTA/=AXIS%DT_MINUTES ) THEN
-    CALL SET_ERROR(IERR,MESSAGE,'CF time axis has a gap, overlap, or variable interval')
-    RETURN
-  ENDIF
-ENDDO
-IF ( AXIS%HAS_BOUNDS ) THEN
-  DO I=1,AXIS%NTIME
-    IF ( AXIS%LOWER_MINUTES(I)>=AXIS%UPPER_MINUTES(I) ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF time bounds must be strictly increasing within each record')
-      RETURN
-    ENDIF
-    IF ( AXIS%CENTER_MINUTES(I)<AXIS%LOWER_MINUTES(I) .OR. &
-       & AXIS%CENTER_MINUTES(I)>AXIS%UPPER_MINUTES(I) ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF time coordinate lies outside its bounds')
-      RETURN
-    ENDIF
-    IF ( AXIS%UPPER_MINUTES(I) - AXIS%LOWER_MINUTES(I) /= AXIS%DT_MINUTES ) THEN
-      CALL SET_ERROR(IERR,MESSAGE,'CF time-bounds width differs from the time-coordinate interval')
-      RETURN
-    ENDIF
-    IF ( I>1 ) THEN
-      IF ( AXIS%LOWER_MINUTES(I)/=AXIS%UPPER_MINUTES(I-1) ) THEN
-        CALL SET_ERROR(IERR,MESSAGE,'CF time bounds have a gap or overlap')
-        RETURN
-      ENDIF
-    ENDIF
-  ENDDO
-ENDIF
-END SUBROUTINE VALIDATE_TIME_AXIS
-!####################################################################
+    public :: cf_read_time_axis
+    public :: cf_resolve_time_record
 #endif
 
-#ifdef UseCDF_CMF
+contains
+
 !####################################################################
-SUBROUTINE CF_READ_TIME_AXIS(NCID,TIME_NAME,AXIS,IERR,MESSAGE)
-INTEGER, INTENT(IN) :: NCID
-CHARACTER(LEN=*), INTENT(IN) :: TIME_NAME
-TYPE(CF_TIME_AXIS), INTENT(OUT) :: AXIS
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER :: STATUS,TIME_VARID,NDIMS
-INTEGER :: DIMIDS(NF90_MAX_VAR_DIMS),BOUND_DIMIDS(NF90_MAX_VAR_DIMS)
-INTEGER :: BOUND_VARID,BOUND_NDIMS,LEN1,LEN2,I
-REAL(KIND=JPRD), ALLOCATABLE :: RAW_TIME(:),RAW_BOUND(:,:),LOWER_RAW(:),UPPER_RAW(:)
-REAL(KIND=JPRD) :: UNIT_MINUTES
-INTEGER(KIND=JPIB) :: REFERENCE_MINUTES
-CHARACTER(LEN=CF_STRLEN) :: CALENDAR,BOUND_NAME
+pure function lowercase(text) result(lower)
+    character(len=*), intent(in) :: text
+    character(len=len(text)) :: lower
+    integer :: i, code
 
-IERR=0
-MESSAGE=''
-CALENDAR='standard'
-BOUND_NAME=''
-
-STATUS=NF90_INQ_VARID(NCID,TRIM(TIME_NAME),TIME_VARID)
-IF ( STATUS/=NF90_NOERR ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'cannot find NetCDF time coordinate variable: '//TRIM(TIME_NAME))
-  RETURN
-ENDIF
-STATUS=NF90_INQUIRE_VARIABLE(NCID,TIME_VARID,NDIMS=NDIMS,DIMIDS=DIMIDS)
-IF ( STATUS/=NF90_NOERR .OR. NDIMS/=1 ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'NetCDF time coordinate must be one-dimensional: '//TRIM(TIME_NAME))
-  RETURN
-ENDIF
-STATUS=NF90_INQUIRE_DIMENSION(NCID,DIMIDS(1),LEN=AXIS%NTIME)
-IF ( STATUS/=NF90_NOERR ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'cannot read NetCDF time dimension length')
-  RETURN
-ENDIF
-STATUS=NF90_GET_ATT(NCID,TIME_VARID,'units',AXIS%UNITS)
-IF ( STATUS/=NF90_NOERR ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'NetCDF time coordinate is missing required units attribute')
-  RETURN
-ENDIF
-AXIS%UNITS=TRIM(SANITIZE_STRING(AXIS%UNITS))
-STATUS=NF90_GET_ATT(NCID,TIME_VARID,'calendar',CALENDAR)
-IF ( STATUS/=NF90_NOERR .AND. STATUS/=NF90_ENOTATT ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'cannot read NetCDF time calendar attribute')
-  RETURN
-ENDIF
-CALL PARSE_CF_UNITS(AXIS%UNITS,CALENDAR,UNIT_MINUTES,REFERENCE_MINUTES,AXIS%CALENDAR,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-
-ALLOCATE(RAW_TIME(AXIS%NTIME),AXIS%CENTER_MINUTES(AXIS%NTIME))
-STATUS=NF90_GET_VAR(NCID,TIME_VARID,RAW_TIME)
-IF ( STATUS/=NF90_NOERR ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'cannot read NetCDF time coordinate values')
-  RETURN
-ENDIF
-CALL VALUES_TO_MINUTES(RAW_TIME,UNIT_MINUTES,REFERENCE_MINUTES,AXIS%CENTER_MINUTES,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-
-STATUS=NF90_GET_ATT(NCID,TIME_VARID,'bounds',BOUND_NAME)
-IF ( STATUS==NF90_NOERR ) THEN
-  BOUND_NAME=TRIM(SANITIZE_STRING(BOUND_NAME))
-  STATUS=NF90_INQ_VARID(NCID,TRIM(BOUND_NAME),BOUND_VARID)
-  IF ( STATUS/=NF90_NOERR ) THEN
-    CALL SET_ERROR(IERR,MESSAGE,'time bounds attribute names a missing variable: '//TRIM(BOUND_NAME))
-    RETURN
-  ENDIF
-  STATUS=NF90_INQUIRE_VARIABLE(NCID,BOUND_VARID,NDIMS=BOUND_NDIMS,DIMIDS=BOUND_DIMIDS)
-  IF ( STATUS/=NF90_NOERR .OR. BOUND_NDIMS/=2 ) THEN
-    CALL SET_ERROR(IERR,MESSAGE,'NetCDF time bounds variable must be two-dimensional')
-    RETURN
-  ENDIF
-  CALL NF90_CHECK_DIMENSION(NCID,BOUND_DIMIDS(1),LEN1,IERR,MESSAGE)
-  IF ( IERR/=0 ) RETURN
-  CALL NF90_CHECK_DIMENSION(NCID,BOUND_DIMIDS(2),LEN2,IERR,MESSAGE)
-  IF ( IERR/=0 ) RETURN
-  ALLOCATE(RAW_BOUND(LEN1,LEN2),LOWER_RAW(AXIS%NTIME),UPPER_RAW(AXIS%NTIME))
-  STATUS=NF90_GET_VAR(NCID,BOUND_VARID,RAW_BOUND)
-  IF ( STATUS/=NF90_NOERR ) THEN
-    CALL SET_ERROR(IERR,MESSAGE,'cannot read NetCDF time bounds values')
-    RETURN
-  ENDIF
-  IF ( LEN1==2 .AND. LEN2==AXIS%NTIME ) THEN
-    LOWER_RAW=RAW_BOUND(1,:)
-    UPPER_RAW=RAW_BOUND(2,:)
-  ELSEIF ( LEN1==AXIS%NTIME .AND. LEN2==2 ) THEN
-    DO I=1,AXIS%NTIME
-      LOWER_RAW(I)=RAW_BOUND(I,1)
-      UPPER_RAW(I)=RAW_BOUND(I,2)
-    ENDDO
-  ELSE
-    CALL SET_ERROR(IERR,MESSAGE,'NetCDF time bounds dimensions must be time x 2')
-    RETURN
-  ENDIF
-  AXIS%HAS_BOUNDS=.TRUE.
-  ALLOCATE(AXIS%LOWER_MINUTES(AXIS%NTIME),AXIS%UPPER_MINUTES(AXIS%NTIME))
-  CALL VALUES_TO_MINUTES(LOWER_RAW,UNIT_MINUTES,REFERENCE_MINUTES,AXIS%LOWER_MINUTES,IERR,MESSAGE)
-  IF ( IERR/=0 ) RETURN
-  CALL VALUES_TO_MINUTES(UPPER_RAW,UNIT_MINUTES,REFERENCE_MINUTES,AXIS%UPPER_MINUTES,IERR,MESSAGE)
-  IF ( IERR/=0 ) RETURN
-ELSEIF ( STATUS/=NF90_ENOTATT ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'cannot read NetCDF time bounds attribute')
-  RETURN
-ENDIF
-
-CALL VALIDATE_TIME_AXIS(AXIS,IERR,MESSAGE)
-END SUBROUTINE CF_READ_TIME_AXIS
+    lower=text
+    do i=1,len(text)
+        code=iachar(text(i:i))
+        if ( code>=iachar('A') .and. code<=iachar('Z') ) lower(i:i)=achar(code+32)
+    enddo
+end function lowercase
 !####################################################################
 
 !####################################################################
-SUBROUTINE NF90_CHECK_DIMENSION(NCID,DIMID,LENGTH,IERR,MESSAGE)
-INTEGER, INTENT(IN) :: NCID,DIMID
-INTEGER, INTENT(OUT) :: LENGTH
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER :: STATUS
+pure function sanitize_string(text) result(clean)
+    character(len=*), intent(in) :: text
+    character(len=len(text)) :: clean
+    integer :: i
 
-IERR=0
-MESSAGE=''
-STATUS=NF90_INQUIRE_DIMENSION(NCID,DIMID,LEN=LENGTH)
-IF ( STATUS/=NF90_NOERR ) CALL SET_ERROR(IERR,MESSAGE,'cannot inspect NetCDF time bounds dimension')
-END SUBROUTINE NF90_CHECK_DIMENSION
+    clean=text
+    do i=1,len(text)
+        if ( iachar(clean(i:i))==0 ) clean(i:i)=' '
+    enddo
+end function sanitize_string
 !####################################################################
-#endif
 
 !####################################################################
-SUBROUTINE CF_FIND_TIME_RECORD(AXIS,YYYYMMDD,HOUR,MINUTE,RECORD,IERR,MESSAGE,REQUIRE_INTERVAL_START)
-TYPE(CF_TIME_AXIS), INTENT(IN) :: AXIS
-INTEGER(KIND=JPIM), INTENT(IN) :: YYYYMMDD,HOUR,MINUTE
-INTEGER(KIND=JPIM), INTENT(OUT) :: RECORD
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-LOGICAL, OPTIONAL, INTENT(IN) :: REQUIRE_INTERVAL_START
-INTEGER(KIND=JPIB) :: TARGET
-INTEGER :: I
-LOGICAL :: REQUIRE_START
+subroutine set_error(ierr,message,text)
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    character(len=*), intent(in) :: text
 
-RECORD=0
-REQUIRE_START=.FALSE.
-IF ( PRESENT(REQUIRE_INTERVAL_START) ) REQUIRE_START=REQUIRE_INTERVAL_START
-CALL CF_DATETIME_TO_MINUTES(AXIS%CALENDAR,YYYYMMDD,HOUR,MINUTE,TARGET,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-IF ( AXIS%HAS_BOUNDS ) THEN
-  ! Prefer the lower edge when it is also the previous record's coordinate
-  ! or upper edge. End-stamped averages then select the interval beginning
-  ! at the simulation start rather than the interval that has just ended.
-  DO I=1,AXIS%NTIME
-    IF ( TARGET==AXIS%LOWER_MINUTES(I) ) THEN
-      RECORD=I
-      RETURN
-    ENDIF
-  ENDDO
-  ! A coordinate value is also a valid update anchor for centered data whose
-  ! bounds do not start at the model start hour.
-  DO I=1,AXIS%NTIME
-    IF ( TARGET==AXIS%CENTER_MINUTES(I) ) THEN
-      RECORD=I
-      RETURN
-    ENDIF
-  ENDDO
-  DO I=1,AXIS%NTIME
-    IF ( TARGET>=AXIS%LOWER_MINUTES(I) .AND. TARGET<AXIS%UPPER_MINUTES(I) ) THEN
-      IF ( REQUIRE_START .AND. TARGET/=AXIS%LOWER_MINUTES(I) ) THEN
-        CALL SET_ERROR(IERR,MESSAGE, &
-                     &'simulation start lies inside a time bound; start at its coordinate or lower edge')
-        RETURN
-      ENDIF
-      RECORD=I
-      RETURN
-    ENDIF
-  ENDDO
-ELSE
-  DO I=1,AXIS%NTIME
-    IF ( TARGET==AXIS%CENTER_MINUTES(I) ) THEN
-      RECORD=I
-      RETURN
-    ENDIF
-  ENDDO
-ENDIF
-CALL SET_ERROR(IERR,MESSAGE,'simulation start time does not match any NetCDF time record')
-END SUBROUTINE CF_FIND_TIME_RECORD
+    ierr=1
+    message=trim(text)
+end subroutine set_error
+!####################################################################
+
+!####################################################################
+subroutine normalize_calendar(calendar,ical,normalized,ierr,message)
+    character(len=*), intent(in) :: calendar
+    integer, intent(out) :: ical
+    character(len=*), intent(out) :: normalized
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    character(len=32) :: cal
+
+    ierr=0
+    message=''
+    ical=0
+    normalized=''
+    cal=trim(lowercase(adjustl(sanitize_string(calendar))))
+    if ( len_trim(cal)==0 ) cal='standard'
+
+    select case (trim(cal))
+    case ('gregorian','standard','proleptic_gregorian')
+        ical=CAL_GREGORIAN
+        normalized=trim(cal)
+    case ('365_day','noleap')
+        ical=CAL_NOLEAP
+        normalized=trim(cal)
+    case default
+        call set_error(ierr,message,'unsupported CF calendar: '//trim(cal))
+    end select
+end subroutine normalize_calendar
+!####################################################################
+
+!####################################################################
+pure logical function is_gregorian_leap_year(year)
+    integer(kind=JPIM), intent(in) :: year
+
+    is_gregorian_leap_year = mod(year, 400_JPIM) == 0_JPIM .or. &
+    &   (mod(year, 4_JPIM) == 0_JPIM .and. mod(year, 100_JPIM) /= 0_JPIM)
+end function is_gregorian_leap_year
+!####################################################################
+
+!####################################################################
+subroutine date_parts_to_minutes(year,month,day,hour,minute,ical,value,ierr,message)
+    integer(kind=JPIM), intent(in) :: year,month,day,hour,minute
+    integer, intent(in) :: ical
+    integer(kind=JPIB), intent(out) :: value
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer(kind=JPIM) :: month_days(12), imon
+    integer(kind=JPIB) :: days
+
+    ierr=0
+    message=''
+    value=0_JPIB
+    if ( year<1 .or. month<1 .or. month>12 .or. hour<0 .or. hour>23 .or. minute<0 .or. minute>59 ) then
+        call set_error(ierr,message,'invalid datetime component in CF time metadata')
+        return
+    endif
+
+    month_days=(/31,28,31,30,31,30,31,31,30,31,30,31/)
+    if ( ical==CAL_GREGORIAN .and. is_gregorian_leap_year(year) ) month_days(2)=29
+    if ( day<1 .or. day>month_days(month) ) then
+        call set_error(ierr,message,'invalid day for CF calendar')
+        return
+    endif
+
+    if ( ical==CAL_NOLEAP ) then
+        days=int(year-1,kind=JPIB)*365_JPIB
+    else
+        days = int(year - 1, kind=JPIB) * 365_JPIB + int((year - 1) / 4, kind=JPIB) &
+        &   - int((year - 1) / 100, kind=JPIB) + int((year - 1) / 400, kind=JPIB)
+    endif
+    do imon=1,month-1
+        days=days+int(month_days(imon),kind=JPIB)
+    enddo
+    days=days+int(day-1,kind=JPIB)
+    value=(days*24_JPIB+int(hour,kind=JPIB))*60_JPIB+int(minute,kind=JPIB)
+end subroutine date_parts_to_minutes
+!####################################################################
+
+!####################################################################
+subroutine cf_datetime_to_minutes(calendar,yyyymmdd,hour,minute,value,ierr,message)
+    character(len=*), intent(in) :: calendar
+    integer(kind=JPIM), intent(in) :: yyyymmdd,hour,minute
+    integer(kind=JPIB), intent(out) :: value
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer :: ical
+    integer(kind=JPIM) :: year,month,day
+    character(len=32) :: normalized
+
+    ical=0
+    call normalize_calendar(calendar,ical,normalized,ierr,message)
+    if ( ierr/=0 ) return
+    year=yyyymmdd/10000_JPIM
+    month=mod(yyyymmdd/100_JPIM,100_JPIM)
+    day=mod(yyyymmdd,100_JPIM)
+    call date_parts_to_minutes(year,month,day,hour,minute,ical,value,ierr,message)
+end subroutine cf_datetime_to_minutes
 !####################################################################
 
 #ifdef UseCDF_CMF
 !####################################################################
-SUBROUTINE CF_RESOLVE_TIME_RECORD(NCID,TIME_NAME,YYYYMMDD,HOUR,MINUTE,LLEAPYR, &
-                                & EXPECTED_INTERVAL_SECONDS,EXPECTED_NTIME,AXIS,RECORD,IERR,MESSAGE)
-INTEGER, INTENT(IN) :: NCID
-CHARACTER(LEN=*), INTENT(IN) :: TIME_NAME
-INTEGER(KIND=JPIM), INTENT(IN) :: YYYYMMDD,HOUR,MINUTE,EXPECTED_INTERVAL_SECONDS,EXPECTED_NTIME
-LOGICAL, INTENT(IN) :: LLEAPYR
-TYPE(CF_TIME_AXIS), INTENT(OUT) :: AXIS
-INTEGER(KIND=JPIM), INTENT(OUT) :: RECORD,IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-LOGICAL :: CALENDAR_OK
+subroutine parse_reference_datetime(text,ical,reference_minutes,ierr,message)
+    character(len=*), intent(in) :: text
+    integer, intent(in) :: ical
+    integer(kind=JPIB), intent(out) :: reference_minutes
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    character(len=CF_STRLEN) :: ref,timezone,tzcompact
+    integer(kind=JPIM) :: year,month,day,hour,minute,second,tzhour,tzminute,tzoffset
+    integer :: ios, n, i, j, tzsign, tzstart
 
-CALL CF_READ_TIME_AXIS(NCID,TIME_NAME,AXIS,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-IF ( AXIS%NTIME/=EXPECTED_NTIME ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'NetCDF time coordinate length differs from its dimension')
-  RETURN
-ENDIF
-IF ( AXIS%DT_MINUTES>0_JPIB .AND. &
-   & AXIS%DT_MINUTES*60_JPIB/=INT(EXPECTED_INTERVAL_SECONDS,KIND=JPIB) ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'configured input interval differs from the NetCDF CF time interval')
-  RETURN
-ENDIF
-CALENDAR_OK=CF_CALENDAR_MATCHES_LLEAPYR(AXIS%CALENDAR,LLEAPYR,IERR,MESSAGE)
-IF ( IERR/=0 ) RETURN
-IF ( .NOT.CALENDAR_OK ) THEN
-  CALL SET_ERROR(IERR,MESSAGE,'NetCDF calendar and LLEAPYR are inconsistent')
-  RETURN
-ENDIF
-CALL CF_FIND_TIME_RECORD(AXIS,YYYYMMDD,HOUR,MINUTE,RECORD,IERR,MESSAGE,.TRUE.)
-END SUBROUTINE CF_RESOLVE_TIME_RECORD
+    ierr=0
+    message=''
+    reference_minutes=0_JPIB
+    ref=adjustl(text)
+    n=len_trim(ref)
+    timezone=''
+    tzstart=0
+    do i=11,n
+        if ( ref(i:i)=='+' .or. ref(i:i)=='-' ) then
+            tzstart=i
+            exit
+        endif
+    enddo
+    if ( tzstart==0 .and. n>=1 ) then
+        if ( ref(n:n)=='Z' .or. ref(n:n)=='z' ) tzstart=n
+    endif
+    if ( tzstart==0 .and. n>=3 ) then
+        if ( lowercase(ref(n-2:n))=='utc' ) tzstart=n-2
+    endif
+    if ( tzstart>0 ) then
+        timezone=trim(adjustl(ref(tzstart:n)))
+        ref(tzstart:n)=' '
+        n=len_trim(ref)
+    endif
+    if ( n<10 ) then
+        call set_error(ierr,message,'invalid reference datetime in CF time units: '//trim(ref))
+        return
+    endif
+    if ( ref(5:5)/='-' .or. ref(8:8)/='-' ) then
+        call set_error(ierr,message,'CF reference date must use YYYY-MM-DD: '//trim(ref))
+        return
+    endif
+
+    read(ref(1:4),'(I4)',iostat=ios) year
+    if ( ios/=0 ) goto 900
+    read(ref(6:7),'(I2)',iostat=ios) month
+    if ( ios/=0 ) goto 900
+    read(ref(9:10),'(I2)',iostat=ios) day
+    if ( ios/=0 ) goto 900
+    hour=0
+    minute=0
+    second=0
+    if ( n>=13 ) then
+        if ( ref(11:11)=='T' .or. ref(11:11)=='t' ) ref(11:11)=' '
+        if ( ref(11:11)/=' ' ) goto 900
+        read(ref(12:13),'(I2)',iostat=ios) hour
+        if ( ios/=0 ) goto 900
+    endif
+    if ( n>=16 ) then
+        if ( ref(14:14)/=':' ) goto 900
+        read(ref(15:16),'(I2)',iostat=ios) minute
+        if ( ios/=0 ) goto 900
+    endif
+    if ( n>=19 ) then
+        if ( ref(17:17)/=':' ) goto 900
+        read(ref(18:19),'(I2)',iostat=ios) second
+        if ( ios/=0 ) goto 900
+    endif
+    if ( n/=10 .and. n/=13 .and. n/=16 .and. n/=19 ) goto 900
+    if ( second/=0 ) then
+        call set_error(ierr,message,'CF reference time must align to a whole minute: '//trim(ref))
+        return
+    endif
+    call date_parts_to_minutes(year,month,day,hour,minute,ical,reference_minutes,ierr,message)
+    if ( ierr/=0 ) return
+
+    ! CF reference datetimes may include a time-zone suffix. Convert the
+    ! local reference time to UTC: UTC = local time - UTC offset.
+    tzoffset=0_JPIM
+    if ( len_trim(timezone)>0 ) then
+        if ( trim(lowercase(timezone))/='z' .and. trim(lowercase(timezone))/='utc' ) then
+            if ( timezone(1:1)=='+' ) then
+                tzsign=1
+            elseif ( timezone(1:1)=='-' ) then
+                tzsign=-1
+            else
+                call set_error(ierr,message,'unsupported CF reference-time timezone: '//trim(timezone))
+                return
+            endif
+            tzcompact=''
+            j=0
+            do i=2,len_trim(timezone)
+                if ( timezone(i:i)==':' ) cycle
+                j=j+1
+                tzcompact(j:j)=timezone(i:i)
+            enddo
+            if ( j/=2 .and. j/=4 ) then
+                call set_error(ierr,message,'CF timezone must be Z, UTC, +/-HH, +/-HHMM, or +/-HH:MM')
+                return
+            endif
+            read(tzcompact(1:2),'(I2)',iostat=ios) tzhour
+            if ( ios/=0 ) goto 910
+            tzminute=0_JPIM
+            if ( j==4 ) then
+                read(tzcompact(3:4),'(I2)',iostat=ios) tzminute
+                if ( ios/=0 ) goto 910
+            endif
+            if ( tzhour>23 .or. tzminute>59 ) goto 910
+            tzoffset=tzsign*(tzhour*60_JPIM+tzminute)
+        endif
+    endif
+    reference_minutes=reference_minutes-int(tzoffset,kind=JPIB)
+    return
+
+    900 continue
+    call set_error(ierr,message,'cannot parse reference datetime in CF time units: '//trim(ref))
+    return
+    910 continue
+    call set_error(ierr,message,'invalid CF reference-time timezone: '//trim(timezone))
+end subroutine parse_reference_datetime
+!####################################################################
+
+!####################################################################
+subroutine parse_cf_units(units,calendar,unit_minutes,reference_minutes,normalized_calendar,ierr,message)
+    character(len=*), intent(in) :: units,calendar
+    real(kind=JPRD), intent(out) :: unit_minutes
+    integer(kind=JPIB), intent(out) :: reference_minutes
+    character(len=*), intent(out) :: normalized_calendar
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    character(len=CF_STRLEN) :: lower_units, unit_name, reference_text
+    integer :: isince,ical
+
+    ierr=0
+    message=''
+    lower_units=trim(lowercase(adjustl(sanitize_string(units))))
+    isince=index(lower_units,' since ')
+    if ( isince<=1 ) then
+        call set_error(ierr,message,'CF time units must contain " since ": '//trim(units))
+        return
+    endif
+    unit_name=trim(adjustl(lower_units(1:isince-1)))
+    reference_text=trim(adjustl(sanitize_string(units(isince+7:))))
+
+    select case (trim(unit_name))
+    case ('second','seconds','sec','secs')
+        unit_minutes=1._JPRD/60._JPRD
+    case ('minute','minutes','min','mins')
+        unit_minutes=1._JPRD
+    case ('hour','hours','hr','hrs')
+        unit_minutes=60._JPRD
+    case ('day','days')
+        unit_minutes=1440._JPRD
+    case default
+        call set_error(ierr,message,'unsupported CF time unit: '//trim(unit_name))
+        return
+    end select
+
+    call normalize_calendar(calendar,ical,normalized_calendar,ierr,message)
+    if ( ierr/=0 ) return
+    call parse_reference_datetime(reference_text,ical,reference_minutes,ierr,message)
+end subroutine parse_cf_units
+!####################################################################
+
+!####################################################################
+subroutine values_to_minutes(values,unit_minutes,reference_minutes,minutes,ierr,message)
+    real(kind=JPRD), intent(in) :: values(:),unit_minutes
+    integer(kind=JPIB), intent(in) :: reference_minutes
+    integer(kind=JPIB), intent(out) :: minutes(:)
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    real(kind=JPRD) :: offset,rounded
+    integer :: i
+
+    ierr=0
+    message=''
+    do i=1,size(values)
+        offset=values(i)*unit_minutes
+        rounded=anint(offset)
+        if ( abs(offset-rounded)>1.e-7_JPRD ) then
+            call set_error(ierr,message,'CF time value does not align to CaMa-Flood whole-minute time')
+            return
+        endif
+        minutes(i)=reference_minutes+int(nint(offset,kind=JPIB),kind=JPIB)
+    enddo
+end subroutine values_to_minutes
+!####################################################################
+
+!####################################################################
+subroutine validate_time_axis(axis,ierr,message)
+    type(cf_time_axis), intent(inout) :: axis
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer :: i
+    integer(kind=JPIB) :: delta
+
+    ierr=0
+    message=''
+    if ( axis%ntime<1 ) then
+        call set_error(ierr,message,'CF time axis must contain at least one record')
+        return
+    endif
+    if ( axis%ntime==1 ) then
+        axis%dt_minutes=0_JPIB
+        if ( axis%has_bounds ) then
+            if ( axis%lower_minutes(1)>=axis%upper_minutes(1) ) then
+                call set_error(ierr,message,'CF time bounds must be strictly increasing within each record')
+                return
+            endif
+            if (axis%center_minutes(1) < axis%lower_minutes(1) .or. &
+            &   axis%center_minutes(1) > axis%upper_minutes(1)) then
+                call set_error(ierr, message, 'CF time coordinate lies outside its bounds')
+                return
+            endif
+            axis%dt_minutes = axis%upper_minutes(1) - axis%lower_minutes(1)
+        endif
+        return
+    endif
+
+    axis%dt_minutes = axis%center_minutes(2) - axis%center_minutes(1)
+    if (axis%dt_minutes <= 0_JPIB) then
+        call set_error(ierr, message, 'CF time axis must be strictly increasing')
+        return
+    endif
+    do i = 2, axis%ntime
+        delta = axis%center_minutes(i) - axis%center_minutes(i - 1)
+        if (delta /= axis%dt_minutes) then
+            call set_error(ierr, message, 'CF time axis has a gap, overlap, or variable interval')
+            return
+        endif
+    enddo
+    if (axis%has_bounds) then
+        do i = 1, axis%ntime
+            if (axis%lower_minutes(i) >= axis%upper_minutes(i)) then
+                call set_error(ierr, message, 'CF time bounds must be strictly increasing within each record')
+                return
+            endif
+            if (axis%center_minutes(i) < axis%lower_minutes(i) .or. &
+            &   axis%center_minutes(i) > axis%upper_minutes(i)) then
+                call set_error(ierr, message, 'CF time coordinate lies outside its bounds')
+                return
+            endif
+            if (axis%upper_minutes(i) - axis%lower_minutes(i) /= axis%dt_minutes) then
+                call set_error(ierr, message, 'CF time-bounds width differs from the time-coordinate interval')
+                return
+            endif
+            if (i > 1) then
+                if (axis%lower_minutes(i) /= axis%upper_minutes(i - 1)) then
+                    call set_error(ierr, message, 'CF time bounds have a gap or overlap')
+                    return
+                endif
+            endif
+        enddo
+    endif
+end subroutine validate_time_axis
+!####################################################################
+#endif
+
+#ifdef UseCDF_CMF
+!####################################################################
+subroutine cf_read_time_axis(ncid,time_name,axis,ierr,message)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: time_name
+    type(cf_time_axis), intent(out) :: axis
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer :: status,time_varid,ndims
+    integer :: dimids(nf90_max_var_dims),bound_dimids(nf90_max_var_dims)
+    integer :: bound_varid,bound_ndims,len1,len2,i
+    real(kind=JPRD), allocatable :: raw_time(:),raw_bound(:,:),lower_raw(:),upper_raw(:)
+    real(kind=JPRD) :: unit_minutes
+    integer(kind=JPIB) :: reference_minutes
+    character(len=CF_STRLEN) :: calendar,bound_name
+
+    ierr=0
+    message=''
+    calendar='standard'
+    bound_name=''
+
+    status=nf90_inq_varid(ncid,trim(time_name),time_varid)
+    if ( status/=nf90_noerr ) then
+        call set_error(ierr,message,'cannot find NetCDF time coordinate variable: '//trim(time_name))
+        return
+    endif
+    status=nf90_inquire_variable(ncid,time_varid,ndims=ndims,dimids=dimids)
+    if ( status/=nf90_noerr .or. ndims/=1 ) then
+        call set_error(ierr,message,'NetCDF time coordinate must be one-dimensional: '//trim(time_name))
+        return
+    endif
+    status=nf90_inquire_dimension(ncid,dimids(1),len=axis%ntime)
+    if ( status/=nf90_noerr ) then
+        call set_error(ierr,message,'cannot read NetCDF time dimension length')
+        return
+    endif
+    status=nf90_get_att(ncid,time_varid,'units',axis%units)
+    if ( status/=nf90_noerr ) then
+        call set_error(ierr,message,'NetCDF time coordinate is missing required units attribute')
+        return
+    endif
+    axis%units=trim(sanitize_string(axis%units))
+    status=nf90_get_att(ncid,time_varid,'calendar',calendar)
+    if ( status/=nf90_noerr .and. status/=nf90_enotatt ) then
+        call set_error(ierr,message,'cannot read NetCDF time calendar attribute')
+        return
+    endif
+    call parse_cf_units(axis%units,calendar,unit_minutes,reference_minutes,axis%calendar,ierr,message)
+    if ( ierr/=0 ) return
+
+    allocate(raw_time(axis%ntime),axis%center_minutes(axis%ntime))
+    status=nf90_get_var(ncid,time_varid,raw_time)
+    if ( status/=nf90_noerr ) then
+        call set_error(ierr,message,'cannot read NetCDF time coordinate values')
+        return
+    endif
+    call values_to_minutes(raw_time,unit_minutes,reference_minutes,axis%center_minutes,ierr,message)
+    if ( ierr/=0 ) return
+
+    status=nf90_get_att(ncid,time_varid,'bounds',bound_name)
+    if ( status==nf90_noerr ) then
+        bound_name=trim(sanitize_string(bound_name))
+        status=nf90_inq_varid(ncid,trim(bound_name),bound_varid)
+        if ( status/=nf90_noerr ) then
+            call set_error(ierr,message,'time bounds attribute names a missing variable: '//trim(bound_name))
+            return
+        endif
+        status=nf90_inquire_variable(ncid,bound_varid,ndims=bound_ndims,dimids=bound_dimids)
+        if ( status/=nf90_noerr .or. bound_ndims/=2 ) then
+            call set_error(ierr,message,'NetCDF time bounds variable must be two-dimensional')
+            return
+        endif
+        call nf90_check_dimension(ncid,bound_dimids(1),len1,ierr,message)
+        if ( ierr/=0 ) return
+        call nf90_check_dimension(ncid,bound_dimids(2),len2,ierr,message)
+        if ( ierr/=0 ) return
+        allocate(raw_bound(len1,len2),lower_raw(axis%ntime),upper_raw(axis%ntime))
+        status=nf90_get_var(ncid,bound_varid,raw_bound)
+        if ( status/=nf90_noerr ) then
+            call set_error(ierr,message,'cannot read NetCDF time bounds values')
+            return
+        endif
+        if ( len1==2 .and. len2==axis%ntime ) then
+            lower_raw=raw_bound(1,:)
+            upper_raw=raw_bound(2,:)
+        elseif ( len1==axis%ntime .and. len2==2 ) then
+            do i=1,axis%ntime
+                lower_raw(i)=raw_bound(i,1)
+                upper_raw(i)=raw_bound(i,2)
+            enddo
+        else
+            call set_error(ierr,message,'NetCDF time bounds dimensions must be time x 2')
+            return
+        endif
+        axis%has_bounds=.true.
+        allocate(axis%lower_minutes(axis%ntime),axis%upper_minutes(axis%ntime))
+        call values_to_minutes(lower_raw,unit_minutes,reference_minutes,axis%lower_minutes,ierr,message)
+        if ( ierr/=0 ) return
+        call values_to_minutes(upper_raw,unit_minutes,reference_minutes,axis%upper_minutes,ierr,message)
+        if ( ierr/=0 ) return
+    elseif ( status/=nf90_enotatt ) then
+        call set_error(ierr,message,'cannot read NetCDF time bounds attribute')
+        return
+    endif
+
+    call validate_time_axis(axis,ierr,message)
+end subroutine cf_read_time_axis
+!####################################################################
+
+!####################################################################
+subroutine nf90_check_dimension(ncid,dimid,length,ierr,message)
+    integer, intent(in) :: ncid,dimid
+    integer, intent(out) :: length
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer :: status
+
+    ierr=0
+    message=''
+    status=nf90_inquire_dimension(ncid,dimid,len=length)
+    if ( status/=nf90_noerr ) call set_error(ierr,message,'cannot inspect NetCDF time bounds dimension')
+end subroutine nf90_check_dimension
 !####################################################################
 #endif
 
 !####################################################################
-LOGICAL FUNCTION CF_CALENDAR_USES_LEAP_DAY(CALENDAR,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: CALENDAR
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-INTEGER :: ICAL
-CHARACTER(LEN=32) :: NORMALIZED
+subroutine cf_find_time_record(axis,yyyymmdd,hour,minute,record,ierr,message,require_interval_start)
+    type(cf_time_axis), intent(in) :: axis
+    integer(kind=JPIM), intent(in) :: yyyymmdd,hour,minute
+    integer(kind=JPIM), intent(out) :: record
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    logical, optional, intent(in) :: require_interval_start
+    integer(kind=JPIB) :: target
+    integer :: i
+    logical :: require_start
 
-ICAL=0
-CALL NORMALIZE_CALENDAR(CALENDAR,ICAL,NORMALIZED,IERR,MESSAGE)
-CF_CALENDAR_USES_LEAP_DAY=(IERR==0 .AND. ICAL==CAL_GREGORIAN)
-END FUNCTION CF_CALENDAR_USES_LEAP_DAY
+    record=0
+    require_start=.false.
+    if ( present(require_interval_start) ) require_start=require_interval_start
+    call cf_datetime_to_minutes(axis%calendar,yyyymmdd,hour,minute,target,ierr,message)
+    if ( ierr/=0 ) return
+    if ( axis%has_bounds ) then
+        ! Prefer the lower edge when it is also the previous record's coordinate
+        ! or upper edge. End-stamped averages then select the interval beginning
+        ! at the simulation start rather than the interval that has just ended.
+        do i=1,axis%ntime
+            if ( target==axis%lower_minutes(i) ) then
+                record=i
+                return
+            endif
+        enddo
+        ! A coordinate value is also a valid update anchor for centered data whose
+        ! bounds do not start at the model start hour.
+        do i=1,axis%ntime
+            if ( target==axis%center_minutes(i) ) then
+                record=i
+                return
+            endif
+        enddo
+        do i=1,axis%ntime
+            if ( target>=axis%lower_minutes(i) .and. target<axis%upper_minutes(i) ) then
+                if ( require_start .and. target/=axis%lower_minutes(i) ) then
+                    call set_error(ierr, message, &
+                    &   'simulation start lies inside a time bound; start at its coordinate or lower edge')
+                    return
+                endif
+                record=i
+                return
+            endif
+        enddo
+    else
+        do i=1,axis%ntime
+            if ( target==axis%center_minutes(i) ) then
+                record=i
+                return
+            endif
+        enddo
+    endif
+    call set_error(ierr,message,'simulation start time does not match any NetCDF time record')
+end subroutine cf_find_time_record
+!####################################################################
+
+#ifdef UseCDF_CMF
+!####################################################################
+subroutine cf_resolve_time_record(ncid, time_name, yyyymmdd, hour, minute, lleapyr, &
+&   expected_interval_seconds, expected_ntime, axis, record, ierr, message)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: time_name
+    integer(kind=JPIM), intent(in) :: yyyymmdd,hour,minute,expected_interval_seconds,expected_ntime
+    logical, intent(in) :: lleapyr
+    type(cf_time_axis), intent(out) :: axis
+    integer(kind=JPIM), intent(out) :: record,ierr
+    character(len=*), intent(out) :: message
+    logical :: calendar_ok
+
+    call cf_read_time_axis(ncid, time_name, axis, ierr, message)
+    if (ierr /= 0) return
+    if (axis%ntime /= expected_ntime) then
+        call set_error(ierr, message, 'NetCDF time coordinate length differs from its dimension')
+        return
+    endif
+    if (axis%dt_minutes > 0_JPIB .and. &
+    &   axis%dt_minutes * 60_JPIB /= int(expected_interval_seconds, kind=JPIB)) then
+        call set_error(ierr, message, 'configured input interval differs from the NetCDF CF time interval')
+        return
+    endif
+    calendar_ok = cf_calendar_matches_lleapyr(axis%calendar, lleapyr, ierr, message)
+    if (ierr /= 0) return
+    if (.not. calendar_ok) then
+        call set_error(ierr, message, 'NetCDF calendar and LLEAPYR are inconsistent')
+        return
+    endif
+    call cf_find_time_record(axis, yyyymmdd, hour, minute, record, ierr, message, .true.)
+end subroutine cf_resolve_time_record
+!####################################################################
+#endif
+
+!####################################################################
+logical function cf_calendar_uses_leap_day(calendar,ierr,message)
+    character(len=*), intent(in) :: calendar
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    integer :: ical
+    character(len=32) :: normalized
+
+    ical=0
+    call normalize_calendar(calendar,ical,normalized,ierr,message)
+    cf_calendar_uses_leap_day=(ierr==0 .and. ical==CAL_GREGORIAN)
+end function cf_calendar_uses_leap_day
 !####################################################################
 
 !####################################################################
-LOGICAL FUNCTION CF_CALENDAR_MATCHES_LLEAPYR(CALENDAR,LLEAPYR,IERR,MESSAGE)
-CHARACTER(LEN=*), INTENT(IN) :: CALENDAR
-LOGICAL, INTENT(IN) :: LLEAPYR
-INTEGER(KIND=JPIM), INTENT(OUT) :: IERR
-CHARACTER(LEN=*), INTENT(OUT) :: MESSAGE
-LOGICAL :: USES_LEAP
+logical function cf_calendar_matches_lleapyr(calendar,lleapyr,ierr,message)
+    character(len=*), intent(in) :: calendar
+    logical, intent(in) :: lleapyr
+    integer(kind=JPIM), intent(out) :: ierr
+    character(len=*), intent(out) :: message
+    logical :: uses_leap
 
-USES_LEAP=CF_CALENDAR_USES_LEAP_DAY(CALENDAR,IERR,MESSAGE)
-CF_CALENDAR_MATCHES_LLEAPYR=(IERR==0 .AND. USES_LEAP .EQV. LLEAPYR)
-END FUNCTION CF_CALENDAR_MATCHES_LLEAPYR
+    uses_leap=cf_calendar_uses_leap_day(calendar,ierr,message)
+    cf_calendar_matches_lleapyr=(ierr==0 .and. uses_leap .eqv. lleapyr)
+end function cf_calendar_matches_lleapyr
 !####################################################################
 
-END MODULE CMF_CF_TIME_MOD
+end module cmf_cf_time_mod

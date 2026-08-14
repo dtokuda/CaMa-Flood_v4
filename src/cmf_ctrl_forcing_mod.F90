@@ -25,7 +25,7 @@ USE PARKIND1,                ONLY: JPIM, JPIB, JPRB, JPRM
 USE YOS_CMF_INPUT,           ONLY: LOGNAM
 USE YOS_CMF_MAP,             ONLY: INPX, INPY, INPA, INPXI, INPYI, INPAI, INPNI
 #ifdef UseCDF_CMF
-USE CMF_CF_TIME_MOD,         ONLY: CF_TIME_AXIS, CF_RESOLVE_TIME_RECORD
+USE cmf_cf_time_mod,         ONLY: cf_time_axis, cf_resolve_time_record
 #endif
 !============================
 IMPLICIT NONE
@@ -254,7 +254,7 @@ INTEGER(KIND=JPIM)              :: NTIMEID,NCDFSTP
 INTEGER(KIND=JPIM)              :: KMINENDIN
 INTEGER(KIND=JPIM)              :: IERR,NREQUIRED
 CHARACTER(LEN=256)              :: CMESSAGE
-TYPE(CF_TIME_AXIS)              :: ROF_TIME_AXIS
+TYPE(cf_time_axis)              :: ROF_TIME_AXIS
 !================================================
 IF( .not. LINPDAY ) THEN !! only one input file during simulation period
 
@@ -292,7 +292,7 @@ IF( .not. LINPDAY ) THEN !! only one input file during simulation period
   
   !*** 3. Resolve and check runoff forcing time
   IF ( ROFCDF%LAUTOTIME ) THEN
-    CALL CF_RESOLVE_TIME_RECORD(ROFCDF%NCID,TRIM(CVNTIME),ISYYYYMMDD,ISHOUR,ISMIN,LLEAPYR, &
+    CALL cf_resolve_time_record(ROFCDF%NCID,TRIM(CVNTIME),ISYYYYMMDD,ISHOUR,ISMIN,LLEAPYR, &
                               & INT(DTIN,KIND=JPIM),NCDFSTP,ROF_TIME_AXIS,ROFCDF%NRECSTART,IERR,CMESSAGE)
     IF ( IERR/=0 ) THEN
       WRITE(LOGNAM,*) "Cannot resolve runoff NetCDF CF time: ",TRIM(CMESSAGE)
