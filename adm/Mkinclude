@@ -13,9 +13,9 @@ CP = /bin/cp
 # DHEATLINK=-Dheatlink     : activate river water temperature calculation
 #======================================
 
-#DCDF=-DUseCDF_CMF
+DCDF=-DUseCDF_CMF
 #DMPI=-DUseMPI_CMF
-DSINGLE=-DSinglePrec_CMF
+#DSINGLE=-DSinglePrec_CMF
 #DATM=-DNoAtom_CMF
 #DHEATLINK=-Dheatlink
 
@@ -27,8 +27,9 @@ CFLAGS=$(DMPI) $(DCDF) $(DATM) $(DSINGLE) $(DHEATLINK)
 # gfortran Linux
 #======================================
 
-#INC = -I/usr/local/include 
-#LIB = -L/usr/local/lib -lnetcdff
+INC = $(shell nf-config --fflags)
+LIB = $(shell nf-config --flibs)
+NETCDFDIR = $(CONDA_PREFIX)
 
 #==============================
 # FCMP: main program (src/), FC: pre/post process (map/ etc/)
