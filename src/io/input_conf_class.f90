@@ -23,7 +23,7 @@ module input_conf_class
 #ifdef UseCDF_CMF
     use nc_mod, only: &
     &   NCConfig, &
-    &   init_ncconfig, get_nc_dt, get_nc_start_record, & !get_nc_scale_offset, &
+    &   init_ncconfig, get_nc_dt, & !get_nc_scale_offset, &
     &   read_nc, get_nc_domain
 #endif
     use time_mod, only: &
@@ -113,8 +113,6 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     integer(kind=JPIM) :: &
     &   z_in, nx, ny, nz, unit, rec, dt_val
 #ifdef UseCDF_CMF
-    integer(kind=JPIM) :: &
-    &   nc_dt_sec
     character(len=CLEN_ITEM) :: &
     &   var_name
 #endif
@@ -123,7 +121,7 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     real(kind=JPRM) :: &
     &   scale, offset
     logical :: &
-    &   is_catm, is_fldstg, is_found, is_netcdf
+    &   is_catm, is_fldstg, is_found
 
     call read_nml_input_item(nml_unit, item_name, &
     &   is_found, fmt, path, z_in, is_catm, is_fldstg, scale, offset, div_item)
@@ -137,7 +135,6 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     obj%scale  = scale
     obj%offset = offset
     rec = 1
-    is_netcdf = .FALSE.
 
     select case (trim(to_lowercase(fmt)))
         case ('binary', 'bin')
@@ -159,7 +156,6 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
             call open_bin(unit, path, 4 * nx * ny * nz)
 #ifdef UseCDF_CMF
         case ('netcdf', 'nc')
-            is_netcdf = .TRUE.
             call read_nml_input_nc( &
             &   nml_unit, item_name, &
             &   is_found, var_name)
@@ -173,33 +169,12 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
             &   nml_unit, item_name, &
             &   is_found, dt_val, dt_unit)
             if (is_found) then
-                nc_dt_sec = get_nc_dt(obj%ncconf)
-                if (dt2sec(dt_val, dt_unit) <= 0) then
-                    write(LOGNAM, '(a)') &
-                    &   '[input_conf_class/init_InputConf ERROR] input_tres must be positive'
-                    stop 9
-                endif
-                if (nc_dt_sec > 0 .and. dt2sec(dt_val, dt_unit) /= nc_dt_sec) then
-                    write(LOGNAM, '(a,i0,a,i0)') &
-                    &   '[input_conf_class/init_InputConf ERROR] input_tres [s]=', &
-                    &   dt2sec(dt_val, dt_unit), ', NetCDF time interval [s]=', nc_dt_sec
-                    stop 9
-                endif
-                if (nc_dt_sec > 0) then
-                    write(LOGNAM, '(a)') '    input_tres agrees with NetCDF CF time interval'
-                else
-                    write(LOGNAM, '(a)') '    single-record NetCDF interval is supplied by input_tres'
-                endif
+                write(LOGNAM, '(a)') '    CAUTION: temporal resolution is identified with namelist'
             else
-                dt_val  = get_nc_dt(obj%ncconf)
-                if (dt_val <= 0) then
-                    write(LOGNAM, '(a)') &
-                    &   '[input_conf_class/init_InputConf ERROR] input_tres is required for a single-record NetCDF without time bounds'
-                    stop 9
-                endif
-                dt_unit = 'sec'
+                dt_val  = get_nc_dt( &
+                &   obj%ncconf)
+                dt_unit = 'hour'
             endif
-            rec = get_nc_start_record(obj%ncconf, start_dt)
             !call get_nc_scale_offset( &
             !&   unit, var_id, &
             !&   scale, offset)
@@ -227,9 +202,10 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     obj%inpmat_idx = find_inpmat(obj%map)
     obj%dt = dt2sec(dt_val, dt_unit)
 
-    ! Binary annual inputs retain the legacy year-start convention. NetCDF
-    ! inputs select their initial record from the file's CF time coordinate.
-    if (.not. is_netcdf) rec = 1_JPIM + seconds_since_year_start(start_dt) / obj%dt
+    ! Heatlink forcing files are annual files beginning at 00:00 on January 1.
+    ! Select the record corresponding to the simulation start instead of
+    ! restarting each annual file from record 1.
+    rec = 1_JPIM + seconds_since_year_start(start_dt) / obj%dt
     obj%rec = rec
     obj%now_t = 0_JPIM
     obj%nxt_t = 0_JPIM
@@ -241,12 +217,6 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     write(LOGNAM, '(a,i0)')        '    nz = ', nz
     write(LOGNAM, '(2a)')          '    start datetime: ', datetime2string(start_dt)
     write(LOGNAM, '(a,i0)')        '    start record: ', obj%rec
-#ifdef UseCDF_CMF
-    if (is_netcdf) then
-        write(LOGNAM, '(2a)')      '    CF time units: ', trim(obj%ncconf%time_axis%units)
-        write(LOGNAM, '(2a)')      '    CF calendar: ', trim(obj%ncconf%time_axis%calendar)
-    endif
-#endif
     write(LOGNAM, '(2(a,L,a,e10.2))')  '    scale  = ', obj%apply_scale, ' ', obj%scale
     write(LOGNAM, '(2(a,L,a,e10.2))')  '    offset = ', obj%apply_offset, ' ', obj%offset
 end function init_InputConf
@@ -394,12 +364,6 @@ subroutine update_input(self, arr)
         case ('netcdf', 'nc')
             call self%get_file_shape(nx, ny, nz)
             allocate(arr_file(nx,ny,nz), source=0.0_JPRM)
-            if (self%get_rec() > self%ncconf%time_len) then
-                write(LOGNAM, '(2a,i0,a,i0)') &
-                &   '[input_conf_class/update_input ERROR] ', trim(self%get_item()), &
-                &   ': requested record ', self%get_rec(), ' exceeds NetCDF time length ', self%ncconf%time_len
-                stop 9
-            endif
             if (self%ncconf%ndims == 3) then ! (lon, lat, time)
                 call read_nc( &
                 &   arr_file(:,:,1), is_end, self%ncconf, self%get_rec())
@@ -413,13 +377,13 @@ subroutine update_input(self, arr)
             write(LOGNAM, '(2a)') 'fmt = ', trim(self%get_fmt())
             stop
     end select
-    if (is_end) then
-        write(LOGNAM, '(2a,i0)') &
-        &   '[input_conf_class/update_input ERROR] failed to read ', &
-        &   trim(self%get_item()), self%get_rec()
-        stop 9
-    endif
     call self%apply_scale_offset(arr_file(:,:,:))
+
+    if (is_end) then
+        write(LOGNAM, *) trim(self%get_item()), ': read last step again'
+        if (allocated(arr_file)) deallocate(arr_file)
+        return
+    endif
     write(LOGNAM, '(a10,i5)') trim(self%get_item()), self%get_rec()
 
     ! Input files are read into JPRM buffers. Invalid file-side values are

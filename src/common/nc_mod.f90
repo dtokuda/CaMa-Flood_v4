@@ -1,28 +1,17 @@
 module nc_mod
 #ifdef UseCDF_CMF
     use PARKIND1, only: &
-    &   JPIM, JPIB, JPRM, JPRB, JPRD
+    &   JPRM, JPRB, JPRD
     use YOS_CMF_INPUT, only: &
-    &   LOGNAM, LLEAPYR
-    use datetime_mod, only: &
-    &   DateTime
-    use cmf_cf_time_mod, only: &
-    &   cf_time_axis, &
-    &   cf_read_time_axis, &
-    &   cf_find_time_record, &
-    &   cf_calendar_matches_lleapyr
+    &   LOGNAM
     use netcdf
     implicit none
 
     type NCConfig
         integer :: &
-        &   ncid, varid, ndims, time_dimid, time_varid, time_len
+        &   ncid, varid, ndims
         integer, allocatable :: &
         &   shape(:)
-        character(len=64) :: &
-        &   time_name = ''
-        type(cf_time_axis) :: &
-        &   time_axis
     end type NCConfig
 
 
@@ -49,7 +38,9 @@ integer function dimid2varid(ncid, dimid)
     &   ncid, dimid
     character(len=64) :: &
     &   name
-    call handle_error(nf90_inquire_dimension(ncid, dimid, name=name))
+    integer :: &
+    &   status
+    status = nf90_inquire_dimension(ncid, dimid, name=name)
     call handle_error( &
     &   nf90_inq_varid(ncid, name, dimid2varid))
 end function dimid2varid
@@ -59,13 +50,7 @@ type(NCConfig) function init_ncconfig(path, varname)
     character(len=*), intent(in) :: &
     &   path, varname
     integer :: &
-    &   idim
-    integer(kind=JPIM) :: &
-    &   ierr
-    character(len=256) :: &
-    &   message
-    logical :: &
-    &   calendar_ok
+    &   status, idim
     integer, allocatable :: &
     &   dimids(:)
 
@@ -75,43 +60,16 @@ type(NCConfig) function init_ncconfig(path, varname)
     call handle_error( &
     &   nf90_inq_varid(init_ncconfig%ncid, trim(varname), init_ncconfig%varid))
 
-    call handle_error(nf90_inquire_variable( &
-    &   init_ncconfig%ncid, init_ncconfig%varid, ndims=init_ncconfig%ndims))
+    status = nf90_inquire_variable( &
+    &   init_ncconfig%ncid, init_ncconfig%varid, ndims=init_ncconfig%ndims)
     allocate(dimids(init_ncconfig%ndims), source=0)
-    call handle_error(nf90_inquire_variable( &
-    &   init_ncconfig%ncid, init_ncconfig%varid, dimids=dimids))
+    status = nf90_inquire_variable( &
+    &   init_ncconfig%ncid, init_ncconfig%varid, dimids=dimids)
     allocate(init_ncconfig%shape(init_ncconfig%ndims), source=0)
     do idim = 1, init_ncconfig%ndims  ! last dim is time
         call handle_error( &
         &   nf90_inquire_dimension(init_ncconfig%ncid, dimids(idim), len=init_ncconfig%shape(idim)))
     enddo
-    init_ncconfig%time_dimid = dimids(init_ncconfig%ndims)
-    call handle_error(nf90_inquire_dimension( &
-    &   init_ncconfig%ncid, init_ncconfig%time_dimid, &
-    &   name=init_ncconfig%time_name, len=init_ncconfig%time_len))
-    call handle_error(nf90_inq_varid( &
-    &   init_ncconfig%ncid, trim(init_ncconfig%time_name), init_ncconfig%time_varid))
-    call cf_read_time_axis( &
-    &   init_ncconfig%ncid, trim(init_ncconfig%time_name), &
-    &   init_ncconfig%time_axis, ierr, message)
-    if (ierr /= 0_JPIM) then
-        write(LOGNAM, '(2a)') '[nc_mod/init_ncconfig ERROR] ', trim(message)
-        stop 9
-    endif
-    if (init_ncconfig%time_axis%ntime /= init_ncconfig%time_len) then
-        write(LOGNAM, '(a,i0,a,i0)') &
-        &   '[nc_mod/init_ncconfig ERROR] time coordinate length=', &
-        &   init_ncconfig%time_axis%ntime, ', data time dimension length=', init_ncconfig%time_len
-        stop 9
-    endif
-    calendar_ok = cf_calendar_matches_lleapyr( &
-    &   init_ncconfig%time_axis%calendar, LLEAPYR, ierr, message)
-    if (ierr /= 0_JPIM .or. .not. calendar_ok) then
-        write(LOGNAM, '(3a,l1)') '[nc_mod/init_ncconfig ERROR] calendar=', &
-        &   trim(init_ncconfig%time_axis%calendar), ', LLEAPYR=', LLEAPYR
-        if (ierr /= 0_JPIM) write(LOGNAM, '(a)') trim(message)
-        stop 9
-    endif
 end function init_ncconfig
 
 ! ===================================================================================================
@@ -165,28 +123,24 @@ end subroutine get_nc_domain
 integer function get_nc_dt(ncconf)
     type(NCConfig), intent(in) :: &
     &   ncconf
-    get_nc_dt = int(ncconf%time_axis%dt_minutes * 60_JPIB)
+    integer :: &
+    &   status, time_len
+    real(kind=JPRD), allocatable :: &
+    &   time(:)
+    integer, allocatable :: &
+    &   dimids(:)
+
+    allocate(dimids(ncconf%ndims), source=0)
+    status = nf90_inquire_variable( &
+    &   ncconf%ncid, ncconf%varid, dimids=dimids)
+    call handle_error( &
+    &   nf90_inquire_dimension(ncconf%ncid, dimids(ncconf%ndims), len=time_len))
+    allocate(time(time_len), source=0.0_JPRD)
+    call handle_error( &
+    &   nf90_get_var(ncconf%ncid, dimid2varid(ncconf%ncid, dimids(ncconf%ndims)), time))
+    get_nc_dt = int(time(2) - time(1))
+    deallocate(time)
 end function get_nc_dt
-
-
-integer(kind=JPIM) function get_nc_start_record(ncconf, start_dt) result(record)
-    type(NCConfig), intent(in) :: &
-    &   ncconf
-    type(DateTime), intent(in) :: &
-    &   start_dt
-    integer(kind=JPIM) :: &
-    &   ierr
-    character(len=256) :: &
-    &   message
-
-    call cf_find_time_record( &
-    &   ncconf%time_axis, start_dt%yyyymmdd, start_dt%hour, 0_JPIM, &
-    &   record, ierr, message, .TRUE.)
-    if (ierr /= 0_JPIM) then
-        write(LOGNAM, '(2a)') '[nc_mod/get_nc_start_record ERROR] ', trim(message)
-        stop 9
-    endif
-end function get_nc_start_record
 
 
 !subroutine get_nc_scale_offset(unit, var_id, scale, offset)

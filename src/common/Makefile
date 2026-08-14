@@ -8,13 +8,7 @@ MODDIRS = \
 INC  += $(MODDIRS)
 MODS += $(MODDIRS)
 
-CF_TIME_OBJ =
-ifneq ($(findstring -DUseCDF_CMF,$(CFLAGS)),)
-CF_TIME_OBJ = cmf_cf_time_mod.o
-endif
-
 OBJS = \
-	$(CF_TIME_OBJ) \
 	const_mod.o \
 	text_mod.o \
 	funit_mod.o \
@@ -34,7 +28,6 @@ OBJS = \
 #layer_mod.o
 
 array_mod.o: FFLAGS += -Wno-uninitialized -Wno-maybe-uninitialized
-nc_mod.o: $(CF_TIME_OBJ)
 
 .SUFFIXES: .o .F90 .f90
 %.o: %.F90
