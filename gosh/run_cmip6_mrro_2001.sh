@@ -135,7 +135,7 @@ cat > "${output_dir}/input_cmf.nam" <<EOF
 
 &NOUTPUT
   COUTDIR  = "./"
-  CVARSOUT = "outflw"
+  CVARSOUT = "outflw,fldare,rivdph,fldfrc,sfcelv"
   COUTTAG  = "_2001"
   LOUTVEC  = .FALSE.
   LOUTCDF  = .FALSE.
