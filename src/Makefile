@@ -27,7 +27,11 @@ LIBS    ?= $(LIB)
 #=============================
 #*** module
 YOS_OBJS = \
-	parkind1.o      \
+	parkind1.o
+ifneq ($(findstring -DUseCDF_CMF,$(CFLAGS)),)
+YOS_OBJS += cmf_cf_time_mod.o
+endif
+YOS_OBJS += \
 	yos_cmf_input.o \
 	yos_cmf_time.o  \
 	yos_cmf_map.o   \
@@ -74,9 +78,14 @@ SUBLIBS := $(foreach d,$(EXT_LIBS),$(abspath $(d))/lib$(notdir $(d)).a)
 .f90.o:
 	$(FCMP) $(FFLAGS) -c $(INCDIRS) $(MODS) $(CFLAGS) $< -o $@
 
+# Compile the shared CF-time source directly. This keeps the standard
+# executable independent of the optional libcommon archive.
+cmf_cf_time_mod.o: common/cmf_cf_time_mod.F90 parkind1.o
+	$(FCMP) $(FFLAGS) -c $(INCDIRS) $(MODS) $(CFLAGS) $< -o $@
+
 #=============================
 #*** build steps
-.PHONY: all yos calc pre-ext-ctrl ctrl ext-libs drv src clean
+.PHONY: all yos calc pre-ext-ctrl ctrl ext-libs drv src clean test_cf_time
 yos: $(YOS_OBJS)
 calc: yos $(CALC_OBJS)
 pre-ext-ctrl: calc cmf_ctrl_mpi_mod.o cmf_ctrl_restart_mod.o
@@ -106,8 +115,12 @@ $(TARGET).o: drv
 #=============================
 #*** general rule
 all: $(TARGET)
+test_cf_time: parkind1.o cmf_cf_time_mod.o
+	$(FCMP) $(FFLAGS) $(CFLAGS) $(INCDIRS) common/test/test_cf_time.F90 parkind1.o cmf_cf_time_mod.o -o $@ $(LIBS)
+	@if [ -n "$(NETCDFDIR)" ]; then install_name_tool -delete_rpath $(NETCDFDIR)/lib $@ 2>/dev/null || true; fi
+	./$@
 clean:
-	${RM} -rf *.o core *~ *trace temp* *.mod *.a *.s *.optrpt *.dSYM $(TARGET)
+	${RM} -rf *.o core *~ *trace temp* *.mod *.a *.s *.optrpt *.dSYM $(TARGET) test_cf_time test_cf_time_*.nc
 	@for d in $(EXT_LIBS); do \
 		if [ -d $$d ]; then $(MAKE) -C $$d clean; fi; \
 	done
