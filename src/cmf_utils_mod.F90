@@ -673,7 +673,7 @@ REAL(KIND=JPRM),INTENT(INOUT)   :: R2TEMP(NX,NY)
 INTEGER(KIND=JPIM)              :: IY,IX
 !================================================
 DO IY=1, NY
-  DO IX=1, NY
+  DO IX=1, NX
     CALL ENDIAN4R(R2TEMP(IX,IY))
   END DO
 END DO
@@ -693,7 +693,7 @@ INTEGER(KIND=JPIM),INTENT(INOUT)  :: I2TEMP(NX,NY)
 INTEGER(KIND=JPIM)                :: IY,IX
 !================================================
 DO IY=1, NY
-  DO IX=1, NY
+  DO IX=1, NX
     CALL ENDIAN4I(I2TEMP(IX,IY))
   END DO
 END DO

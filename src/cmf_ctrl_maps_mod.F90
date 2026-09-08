@@ -306,7 +306,7 @@ END SUBROUTINE READ_MAP_CDF
 !+
 !==========================================================
 SUBROUTINE CALC_REGION    !! evenly allocate pixels to mpi nodes (updated in v4.03. MPI region given from file)
-USE YOS_CMF_INPUT,           ONLY: IMIS
+USE YOS_CMF_INPUT,           ONLY: IMIS, LMAPEND
 #ifdef UseCDF_CMF
 USE CMF_UTILS_MOD,           ONLY: NCERROR
 USE NETCDF
@@ -352,11 +352,12 @@ END DO
     CALL NCERROR (NF90_CLOSE(NCID))
 #endif
   ELSE
-    WRITE(LOGNAM,*)'RIVMAP_INIT: read MPI region: ',TRIM(CNEXTXY)
+    WRITE(LOGNAM,*)'RIVMAP_INIT: read MPI region: ',TRIM(CMPIREG)
     TMPNAM=INQUIRE_FID()
     OPEN(TMPNAM,FILE=CMPIREG,FORM='UNFORMATTED',ACCESS='DIRECT',RECL=4*NX*NY)
     READ(TMPNAM,REC=1) I2REGION
     CLOSE(TMPNAM)
+    CALL CONV_ENDI(I2REGION,NX,NY)
   ENDIF
 
   REGIONALL=1
