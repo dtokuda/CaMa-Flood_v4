@@ -55,29 +55,61 @@ grids of the same size with different coordinates or ordering. The caller must
 select weights generated for the exact source and destination grids. No new
 metadata format or inference from filenames is introduced.
 
-## Shell configuration
+## Heatlink run script and namelist templates
 
-Run `bash gosh/etc/input-mapping-example.sh` to print two input definitions.
-It only writes a namelist fragment to standard output, without running the
-model or reading data. Set `INPMAT_DIR_ATM` / `INPMAT_DIR_LSM` for convenient
-shared filenames, or override `DIMINFO_FILE_ATM`, `INPMAT_FILE_ATM`,
-`DIMINFO_FILE_LSM`, `INPMAT_FILE_LSM` individually. The example variable names
-and input paths must be adapted to the actual forcing data.
+The existing `gosh/etc/s01-simulation_heatlink.sh` expands `heat-link.nml`
+and appends the atmospheric definitions from `atm_GSWP3.nml` before running
+`src/MAIN_cmf`. There is no separate namelist-generation script to invoke.
+Set forcing and mapping directories in the shell; filenames stay in the
+namelists:
 
-```sh
-INPMAT_DIR_ATM=./mappings/atm \
-DIMINFO_FILE_LSM=./mappings/experiment_b.info \
-INPMAT_FILE_LSM=./mappings/experiment_b.bin \
-bash gosh/etc/input-mapping-example.sh > input-mapping.nml
+```fortran
+&input_item item='TAIR', fmt='nc',
+  path='@ATM_DIR@/GSWP3.BC.Tair.3hrMap.ILS.2000.nc',
+  diminfo_file='@INPMAT_DIR_ATM@/diminfo.txt',
+  inpmat_file='@INPMAT_DIR_ATM@/inpmat.bin' /
 ```
 
-Append the resulting definitions to a complete run namelist, replacing any
-existing definitions of the same input items. Shell grouping into ATM/LSM is
-only a convenience; the Fortran interface has no such fixed groups.
+For example, from the repository root:
+
+```sh
+MAP_DIR=./map/glb_15min \
+ATM_DIR=./forcing/gswp3 \
+INPMAT_DIR_ATM=./mappings/atmosphere \
+RUN_DIR=./out/heatlink-example \
+bash gosh/etc/s01-simulation_heatlink.sh
+```
+
+`INPMAT_DIR_ATM` defaults to
+`${MAP_DIR}/input_mappings/05deg_s-n_0e-360e/mean`. `ATM_DIR` is the forcing
+data directory, not a mapping directory. `INPMAT_DIR_LSM` defaults to
+`MAP_DIR`; the common template keeps the bundled binary-runoff filenames
+`diminfo_test-1deg.txt` and `inpmat_test-1deg.bin` for `CDIMINFO` and `CINPMAT`.
+`RUNOFF_DIR` still selects the binary-runoff data directory. The public example
+retains the year-2000 annual run, forcing units, physics and output selections.
+
+For several mapping pairs in the same directory, edit the individual
+`diminfo_file` and `inpmat_file` filenames in the atmospheric template. You may
+supply a different template through `NML_ATM` (or `NML_COMMON` for the common
+settings). No per-file shell variables are required. Templates use
+single-quoted paths; the script escapes embedded quotes and sed replacement
+characters. Directory paths are resolved before changing to the run directory.
+The script refuses a nonempty run directory and captures standard output,
+standard error and elapsed-time reporting in `run_stdout.log` and
+`run_stderr.log`. `OMP_NUM_THREADS`, if set, is inherited without imposing a
+new thread-count default.
+
+The example now uses explicit atmospheric mappings, so its old eight-entry
+`intrp_map` / `nml_inpmat` list has been removed. The Fortran reader still
+supports those legacy groups for other configurations. The new mapping
+format requires the diminfo/binary pair described above; pointing at a legacy
+`inpmat_01.dim/.cfg/.bin` directory does not convert it. Adapt template
+filenames or generate the appropriate mapping pair before running.
 
 ## Tests
 
 ```sh
+python3 gosh/etc/test/test_heatlink_script.py
 make -C src/mod test-input-mapping FCMP=gfortran
 make -C src/mod test-input-mapping FCMP=gfortran INPUT_MAPPING_TEST_FLAGS=--netcdf
 ```
@@ -88,3 +120,6 @@ single and double model precision are tested with runtime bounds checks.
 Build products and synthetic fixtures are isolated in a temporary directory;
 no external model data are needed. On macOS, configure the compiler's SDK
 normally (for example with SDKROOT if required by the toolchain).
+
+The launcher tests use empty data directories and a fake executable to verify
+namelist generation, log capture and failure handling without a model run.
