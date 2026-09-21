@@ -119,7 +119,7 @@ def main():
                 run(shlex.split(args.fc) + flags + compile_flags + ["-c", str(SRC/source), "-o", str(obj)], build)
                 objects.append(str(obj))
             exe = build / "test_input_mapping"
-            run(shlex.split(args.fc) + flags + compile_flags + [str(SRC/"mod/test/test_input_mapping.F90"), *objects, *link_flags, "-o", str(exe)], build)
+            run(shlex.split(args.fc) + flags + compile_flags + [str(SRC/"mod/test/test_input_mapping.f90"), *objects, *link_flags, "-o", str(exe)], build)
             # Some macOS compiler wrappers emit duplicate LC_RPATH commands.
             if sys.platform == "darwin":
                 commands = run(["otool", "-l", str(exe)], build)
