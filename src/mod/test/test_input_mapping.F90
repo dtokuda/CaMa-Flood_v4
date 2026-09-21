@@ -1,11 +1,10 @@
 program test_input_mapping
     use, intrinsic :: iso_fortran_env, only: output_unit
     use PARKIND1, only: JPRM, JPRB
-    use YOS_CMF_INPUT, only: LOGNAM, NX, NY, NLFP, CSETFILE, LLEAPYR
+    use YOS_CMF_INPUT, only: LOGNAM, NX, NY, NLFP, LLEAPYR
     use YOS_CMF_MAP, only: NSEQMAX, I1SEQX, I1SEQY
     use inpmat_mod, only: Inpmat, load_inpmat_files, move_append_inpmat
-    use dim_converter, only: init_dim_converter, get_inpmat_index, find_inpmat, map2vec
-    use camaframe_mod, only: CaMaFrame, init_CaMaFrame
+    use dim_converter, only: init_dim_converter, get_inpmat_index, map2vec
     use input_conf_class, only: InputConf, init_InputConf
     use datetime_mod, only: date_hour2datetime
 #ifdef UseCDF_CMF
@@ -14,7 +13,6 @@ program test_input_mapping
     implicit none
     type(Inpmat) :: mapping
     type(Inpmat), allocatable :: mappings(:)
-    type(CaMaFrame) :: frame
     type(InputConf) :: conf
     real(kind=JPRM) :: source(2,2)
     real(kind=JPRB) :: vec(2)
@@ -30,12 +28,10 @@ program test_input_mapping
     allocate(I1SEQX(2), I1SEQY(2))
     I1SEQX = [1,2]
     I1SEQY = [1,1]
-    CSETFILE = 'input.nml'
     call init_dim_converter()
     source = reshape([10.0_JPRM,20.0_JPRM,30.0_JPRM,40.0_JPRM],[2,2])
-    frame = init_CaMaFrame(0.0_JPRB,2.0_JPRB,2.0_JPRB,0.0_JPRB,2,2,.false.,.false.)
     select case(trim(mode))
-    case ('cache', 'mixed', 'explicit-disabled')
+    case ('cache')
         a = get_inpmat_index('a.info', 'a.bin', 2, 2)
         b = get_inpmat_index('info-alias', './other/../alias.bin', 2, 2)
         call assert_true(a == b, 'alias cache reuse')
@@ -50,11 +46,6 @@ program test_input_mapping
         call check(vec, [10.0_JPRB,15.0_JPRB])
         call map2vec(source, vec, inpmat_idx=c)
         call check(vec, [10.0_JPRB,15.0_JPRB])
-        if (trim(mode) == 'mixed') then
-            c = find_inpmat(frame)
-            call map2vec(source, vec, frame, c)
-            call check(vec, [17.5_JPRB,20.0_JPRB])
-        endif
         call load_inpmat_files(mapping, 'a.info', 'a.bin')
         call move_append_inpmat(mappings, mapping)
         call assert_true(.not. allocated(mapping%inpx), 'moved ownership')
@@ -62,8 +53,8 @@ program test_input_mapping
         call check(vec, [17.5_JPRB,20.0_JPRB])
         call init_dim_converter()
         a = get_inpmat_index('a.info', 'b.bin', 2, 2)
-        call assert_true(a == -1, 'cache reset')
-    case ('input', 'legacy', 'catm', 'netcdf')
+        call assert_true(a == 1, 'cache reset')
+    case ('input', 'catm', 'netcdf')
 #ifdef UseCDF_CMF
         if (trim(mode) == 'netcdf') call write_netcdf()
 #endif

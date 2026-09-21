@@ -53,14 +53,10 @@ def fixtures(path, mode):
     (path / "b.bin").write_bytes(struct.pack("=8i4f", 1,1,0,2, 1,1,0,1, 1.,1.,0.,1.))
     (path / "alias.bin").symlink_to("a.bin")
     (path / "info-alias").symlink_to("a.info")
-    (path / "legacy.dim").write_text("2\n2\n2\n")
-    (path / "legacy.cfg").write_text("grid\n0\n2\n0\n2\nT\n")
-    (path / "legacy.bin").write_bytes(binary)
     (path / "forcing.bin").write_bytes(struct.pack("=8f", 0.,0.,0.,0.,10.,20.,30.,40.))
     (path / "catm.bin").write_bytes(struct.pack("=2f", 10.,20.))
-    legacy = "&intrp_map LINTRP=.true., inpmat_names='legacy' /\n&nml_inpmat item='legacy', dir='.', prefix='legacy' /\n"
     mapping = ", diminfo_file='a.info', inpmat_file='a.bin'"
-    if mode in ("legacy", "catm"): mapping = ""
+    if mode in ("no-mapping", "catm"): mapping = ""
     if mode == "partial": mapping = ", diminfo_file='a.info'"
     if mode == "partial-binary": mapping = ", inpmat_file='a.bin'"
     if mode == "catm-files": mapping += ", is_catm=.true."
@@ -73,9 +69,6 @@ def fixtures(path, mode):
     nml += "&input_shape item='TEST', nx=2, ny=2, nz=2 /\n"
     if mode == "catm": nml = nml.replace("ny=2, nz=2", "ny=1, nz=1")
     nml += "&input_tres item='TEST', dt=1, dt_unit='hour' /\n"
-    if mode in ("mixed", "legacy"): nml += legacy
-    if mode == "explicit-disabled": nml += "&intrp_map LINTRP=.false. /\n"
-    if mode == "malformed": nml += "&intrp_map bad_key=1 /\n"
     (path / "input.nml").write_text(nml)
     if mode == "missing": (path / "a.bin").unlink()
     if mode == "missing-info": (path / "a.info").unlink()
@@ -99,7 +92,7 @@ def main():
     if args.netcdf:
         compile_flags = shlex.split(subprocess.check_output(["nf-config", "--fflags"], text=True))
         link_flags = shlex.split(subprocess.check_output(["nf-config", "--flibs"], text=True))
-    positive = ["cache", "mixed", "input", "legacy", "catm", "trailing", "explicit-disabled"]
+    positive = ["cache", "input", "catm", "trailing"]
     if args.netcdf: positive.append("netcdf")
     negative = {
         "partial": "specify both", "partial-binary": "specify both",
@@ -108,7 +101,7 @@ def main():
         "source-shape": "source shape mismatch", "cache-shape": "source shape mismatch",
         "indices": "out of range", "weights": "finite and non-negative", "nonfinite": "finite and non-negative",
         "padding": "inconsistent zero padding", "holes": "non-contiguous", "metadata": "invalid file",
-        "malformed": "invalid intrp_map", "nonpositive": "non-positive dimension", "bounds": "non-finite domain bounds",
+        "no-mapping": "gridded input requires diminfo_file and inpmat_file", "nonpositive": "non-positive dimension", "bounds": "non-finite domain bounds",
     }
     for single in (False, True):
         with tempfile.TemporaryDirectory(prefix="cama-input-mapping-") as temp:
@@ -138,7 +131,7 @@ def main():
                 case = build / mode
                 case.mkdir()
                 fixtures(case, mode)
-                arg = "input" if mode in ("partial", "partial-binary", "catm-files") else mode
+                arg = "input" if mode in ("partial", "partial-binary", "catm-files", "no-mapping") else mode
                 result = subprocess.run([str(exe), arg], cwd=case, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 if mode in negative:
                     assert result.returncode != 0 and negative[mode] in result.stdout, (mode, result.stdout)

@@ -1,7 +1,8 @@
 # Explicit mapping files for multi-variable inputs
 
 Each `input_item` may select its own mapping with `diminfo_file` and
-`inpmat_file`. Supply both or neither. Filenames and parent directories are
+`inpmat_file`. Both are required for gridded inputs; omit both for
+`is_catm=.true.` inputs. Filenames and parent directories are
 independent; relative paths are resolved from the model's working directory.
 The fields apply to both NetCDF and binary inputs managed by `InputConf`.
 
@@ -18,19 +19,25 @@ paths, not the directory or source array shape. Relative aliases and symbolic
 links reuse a cache entry. Files are loaded once per pair and must not be
 modified during a run. Different hard-link names are not deduplicated.
 
-## Compatibility
+## Compatibility scope
 
-With neither field set, the existing `intrp_map` / `nml_inpmat` selection and
-prefix-based `.dim`, `.cfg`, `.bin` files remain in use. Explicit and legacy
-inputs can coexist; explicit mappings never enter legacy automatic matching.
-An explicit-only configuration does not need an `intrp_map` group. Its explicit
-mappings also work when a legacy group has `LINTRP=.false.`. Legacy inputs keep
-their existing `LINTRP` behavior.
+Runoff-only discharge calculations retain the existing `NFORCE/CINPMAT` and
+`NDIMTIME/CDIMINFO` interfaces and readers. They do not use this multi-variable
+mapping module, and do not require the new `input_item` fields. Standard
+runoff-only run scripts and model routines are unchanged.
 
-`is_catm=.true.` inputs bypass mapping; specifying mapping files for them is an
-error. This feature does not change the separate runoff input path:
-`NFORCE/CINPMAT` and `NDIMTIME/CDIMINFO` retain their existing meanings.
-It does not add NetCDF dimension slicing.
+For multi-variable / heatlink inputs, the old `intrp_map` / `nml_inpmat`
+registration, grid auto-selection and prefix-based `.dim/.cfg/.bin` reader
+have been removed. Non-CaMa-grid inputs must specify both mapping files.
+`is_catm=.true.` inputs bypass mapping and must omit both fields. An old
+mapping directory must be replaced with appropriate diminfo/binary pairs;
+simply renaming a `.dim` file does not convert its format.
+
+The former heatlink shell variable `INPMAT_DIR` selected the old atmospheric
+mapping directory only. It is removed; use `INPMAT_DIR_ATM` for the new
+atmospheric mapping pairs. `INPMAT_DIR_LSM` in the example is a shell
+convenience for the independent runoff `CDIMINFO` and `CINPMAT` paths.
+This feature does not add NetCDF dimension slicing.
 
 ## Mapping format and validation
 
@@ -100,9 +107,8 @@ standard error and elapsed-time reporting in `run_stdout.log` and
 new thread-count default.
 
 The example now uses explicit atmospheric mappings, so its old eight-entry
-`intrp_map` / `nml_inpmat` list has been removed. The Fortran reader still
-supports those legacy groups for other configurations. The new mapping
-format requires the diminfo/binary pair described above; pointing at a legacy
+`intrp_map` / `nml_inpmat` list and the corresponding multi-variable Fortran
+reader have been removed. The new mapping format requires the diminfo/binary pair described above; pointing at a legacy
 `inpmat_01.dim/.cfg/.bin` directory does not convert it. Adapt template
 filenames or generate the appropriate mapping pair before running.
 

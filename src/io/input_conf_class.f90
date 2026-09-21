@@ -35,7 +35,7 @@ module input_conf_class
     !use intrp_time, only: &
     !&   LINTRP_TIME
     use dim_converter, only: &
-    &   map2vec, find_inpmat, get_inpmat_index
+    &   map2vec, get_inpmat_index
     use io_namelist_mod, only: &
     &   read_nml_input_item, read_nml_input_domain, read_nml_input_shape, read_nml_input_tres, read_nml_input_nc, &
     &   raise_item_not_found_error
@@ -234,7 +234,9 @@ function init_InputConf(item_name, nml_unit, start_dt) result(obj)
     else if (len_trim(obj%diminfo_file) > 0) then
         obj%inpmat_idx = get_inpmat_index(obj%diminfo_file, obj%inpmat_file, nx, ny)
     else
-        obj%inpmat_idx = find_inpmat(obj%map)
+        write(LOGNAM, '(2a)') &
+        &   '[init_InputConf ERROR] gridded input requires diminfo_file and inpmat_file: ', trim(item_name)
+        stop 1
     endif
     obj%dt = dt2sec(dt_val, dt_unit)
 
