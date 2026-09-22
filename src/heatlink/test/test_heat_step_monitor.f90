@@ -1,13 +1,33 @@
 program test_heat_step_monitor
     use PARKIND1, only: JPRD
+    !$ use omp_lib, only: omp_set_num_threads
     use heat_step_monitor_mod
     implicit none
     type(HeatStepState) :: state
     type(HeatStepLedger) :: ledger
     type(HeatStepStats) :: stats
     real(kind = JPRD) :: delta, scale, naive
-    integer :: unit
+    integer :: unit, i, threads, ios, undefined_count, heading_count
+    integer, parameter :: n = 33003
+    real(kind = JPRD) :: values(n), volume(n), theta(n), reference_scale
+    character(len = 512) :: line
 
+    ! Cancellation crosses fixed-block boundaries; n also leaves a partial final block.
+    volume = 1.0_JPRD
+    theta = 0.0_JPRD
+    do i = 1,n,3
+        values(i:i+2) = [1.0e16_JPRD,1.0_JPRD,-1.0e16_JPRD]
+    enddo
+    call capture_heat_step(state,volume,theta)
+    do threads = 1,8
+        !$ call omp_set_num_threads(threads)
+        call check(step_sum(values) == real(n/3,JPRD),'cross-block cancellation independent of threads')
+        call measure_heat_step(state,volume,values,1.0_JPRD,1.0_JPRD,delta,scale,naive)
+        call check(delta == real(n/3,JPRD),'parallel increment retains small terms')
+        if (threads == 1) reference_scale = scale
+        call check(scale == reference_scale,'deterministic parallel storage scale')
+    enddo
+    call check(step_sum(values(:0)) == 0.0_JPRD,'empty diagnostic domain')
     call check(step_sum([1.0e16_JPRD,1.0_JPRD,-1.0e16_JPRD]) == 1.0_JPRD,'compensated cancellation')
     call capture_heat_step(state,[1.0e16_JPRD,1.0_JPRD],[1.0_JPRD,0.0_JPRD])
     call measure_heat_step(state,[1.0e16_JPRD,1.0_JPRD],[1.0_JPRD,1.0_JPRD], &
@@ -50,6 +70,17 @@ program test_heat_step_monitor
     ledger = HeatStepLedger()
     call add_step_heat(ledger,2.0_JPRD,2.0_JPRD,0.0_JPRD,0.0_JPRD)
     call check(ledger%value(1)+ledger%correction(1) == 2.0_JPRD,'interval reset')
+    rewind(unit)
+    undefined_count = 0
+    heading_count = 0
+    do
+        read(unit,'(a)',iostat = ios) line
+        if (ios /= 0) exit
+        call check(index(line,'HEAT_') == 0,'no machine record tags')
+        if (index(line,'undefined') > 0) undefined_count = undefined_count + 1
+        if (trim(line) == '[test]') heading_count = heading_count + 1
+    enddo
+    call check(undefined_count >= 2 .and. heading_count == 5,'readable headings and undefined ratios')
     close(unit)
     print *, 'PASS test_heat_step_monitor'
 contains

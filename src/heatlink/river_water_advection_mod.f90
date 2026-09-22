@@ -343,8 +343,6 @@ subroutine advect_river_water_sensible_heat( &
     if (present(external_heat_j)) external_heat_j = boundary_net_j
     if (present(external_heat_absolute_j)) external_heat_absolute_j = boundary_absolute_j
 
-    if (present(heat_throughput_j)) heat_throughput_j(:) = &
-    &   sOut(:) * srate(:) + volumetric_heat_capacity_j_m3_k * incoming_temperature_volume(:)
 
     ! Reconstruct temperature from nonnegative water weights, never from the
     ! cancellation-prone difference between nearly equal incoming/outgoing heat.
@@ -372,22 +370,24 @@ subroutine advect_river_water_sensible_heat( &
             if (liquid_volume_after_m3(iseq) == liquid_volume_before_m3(iseq) .and. &
             &   incoming_volume_m3(iseq) == 0.0_JPRD .and. sOut(iseq) == 0.0_JPRD) local_unapplied_heat_j(iseq) = 0.0_JPRD
         endif
+        if (present(heat_throughput_j)) heat_throughput_j(iseq) = &
+        &   sOut(iseq) * srate(iseq) + volumetric_heat_capacity_j_m3_k * incoming_temperature_volume(iseq)
+        if (present(unapplied_sensible_heat_j)) then
+            unapplied_sensible_heat_j(iseq) = local_unapplied_heat_j(iseq)
+        endif
+        if (present(water_budget_error_m3)) then
+            water_budget_error_m3(iseq) = liquid_volume_after_m3(iseq) - &
+            &   expected_volume_after_m3(iseq)
+        endif
+        if (present(heat_budget_error_j)) then
+            heat_budget_error_j(iseq) = sensible_heat_j(iseq) - &
+            &   volumetric_heat_capacity_j_m3_k * liquid_volume_after_m3(iseq) * &
+            &   real(water_temperature_k(iseq) - TMELT, kind = JPRD) - &
+            &   local_unapplied_heat_j(iseq)
+        endif
     enddo
     !$omp end parallel do
 
-    if (present(unapplied_sensible_heat_j)) then
-        unapplied_sensible_heat_j(:) = local_unapplied_heat_j(:)
-    endif
-    if (present(water_budget_error_m3)) then
-        water_budget_error_m3(:) = liquid_volume_after_m3(:) - &
-        &   expected_volume_after_m3(:)
-    endif
-    if (present(heat_budget_error_j)) then
-        heat_budget_error_j(:) = sensible_heat_j(:) - &
-        &   volumetric_heat_capacity_j_m3_k * liquid_volume_after_m3(:) * &
-        &   real(water_temperature_k(:) - TMELT, kind = JPRD) - &
-        &   local_unapplied_heat_j(:)
-    endif
     if (present(domain_heat_budget_error_j)) then
         represented_heat_j = volumetric_heat_capacity_j_m3_k * sum( &
         &   liquid_volume_after_m3(:) * &

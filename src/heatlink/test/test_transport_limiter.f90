@@ -12,7 +12,6 @@ program test_transport_limiter
     type(HeatConservationStats) :: audit
     integer :: i, unit
     character(len = 2048) :: line
-    character(len = 32) :: tag
     real(kind = JPRD) :: values(13)
     character(len = 16) :: mode
 
@@ -86,10 +85,12 @@ program test_transport_limiter
     open(newunit = unit,status = 'scratch',form = 'formatted')
     call write_heat_conservation(unit,audit,79.0_JPRD,1.0_JPRD)
     rewind(unit)
-    read(unit,'(a)') line
+    do i = 1,6
+        read(unit,'(a)') line
+    enddo
     close(unit)
-    read(line,*) tag,values
-    call check(tag == 'HEAT_CONSERVATION', 'audit log tag')
+    read(line(index(line,'=')+1:index(line,';')-1),*) values(10)
+    read(line(index(line,'adjusted = ')+11:),*) values(11)
     call check(values(10) == -1.0_JPRD.and.values(11) == 0.0_JPRD, 'raw deficit plus unapplied heat closes')
     audit = HeatConservationStats()
     call record_heat_exchange(audit,1,1.0e16_JPRD,1.0e16_JPRD)

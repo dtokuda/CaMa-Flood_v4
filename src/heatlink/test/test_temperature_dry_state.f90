@@ -8,6 +8,7 @@ program test_temperature_dry_state
     use heat_budget_mod, only: update_local_water_ice_state, liquid_water_energy_j, &
     &   water_ice_energy_j, update_liquid_temperature_no_phase_change, apply_liquid_temperature_floor
     use heat_residual_mod, only: HeatResidualStats, record_heat_residual
+    !$ use omp_lib, only: omp_set_num_threads
     implicit none
     real(kind = JPRD), parameter :: capacity = real(CW,JPRD)*real(RW,JPRD)
     real(kind = JPRB), parameter :: tol = 8.0_JPRB * epsilon(1.0_JPRB)
@@ -23,6 +24,7 @@ program test_temperature_dry_state
     call phase_cycles()
     call local_heating_and_floor()
     call residual_ledger()
+    call parallel_residual_ledger()
     call floor_without_diagnostics()
     write(*, '(a)') '[ALL TESTS PASSED] test_temperature_dry_state'
 contains
@@ -199,6 +201,32 @@ subroutine floor_without_diagnostics()
     call apply_liquid_temperature_floor(t, v)
     call check(all(t == reference), 'omitting floor diagnostics preserves physical temperatures')
 end subroutine floor_without_diagnostics
+
+subroutine parallel_residual_ledger()
+    integer, parameter :: n = 33003
+    type(HeatResidualStats) :: stats
+    real(kind = JPRD) :: residual(n),throughput(n)
+    logical :: mask(n)
+    integer :: i,threads
+    do i = 1,n
+        residual(i) = real(mod(i,3)-1,JPRD)
+        mask(i) = mod(i,2) == 0
+    enddo
+    throughput = 2.0_JPRD
+    do threads = 1,8
+        !$ call omp_set_num_threads(threads)
+        stats = HeatResidualStats()
+        call record_heat_residual(stats,residual,throughput,mask)
+        call record_heat_residual(stats,residual,throughput,mask)
+        call check(stats%positive_j == 2.0_JPRD*sum(max(residual,0.0_JPRD),mask), 'parallel positive heat')
+        call check(stats%negative_j == 2.0_JPRD*sum(min(residual,0.0_JPRD),mask), 'parallel negative heat')
+        call check(stats%throughput_j == 4.0_JPRD*count(mask), 'parallel throughput')
+        call check(stats%events == 2_JPIB*count(mask .and. residual /= 0.0_JPRD), 'repeated parallel events')
+        call check(stats%affected_cells == count(mask .and. residual /= 0.0_JPRD), 'unique affected cells')
+        call check(count(stats%affected) == stats%affected_cells, 'affected mask and count agree')
+        call check(stats%maximum_cell == 2 .and. stats%maximum_absolute_j == 1.0_JPRD, 'first-cell tie handling')
+    enddo
+end subroutine parallel_residual_ledger
 
 subroutine residual_ledger()
     type(HeatResidualStats) :: stats

@@ -5,7 +5,7 @@ module heatlink_config_mod
     integer, parameter :: CONFIG_INTEGER_KIND = selected_int_kind(9) ! [-] Integer kind for configuration values.
     logical, public, save :: LICE = .false. ! [-] Enable water/ice phase changes.
     logical, public, save :: LHEAT_DIAG = .false. ! [-] Enable detailed heat-budget monitoring.
-    character(len = 512), public, save :: CHEAT_LOG = 'log_HEAT-LINK.txt' ! [-] Heatlink log path, relative to the run directory.
+    character(len = 512), public, save :: CHEAT_LOG = 'HEAT-LINK_monitor.log' ! [-] Heatlink log path, relative to the run directory.
     integer(kind = CONFIG_INTEGER_KIND), public, save :: NNEWTON_MAX_ICE = 4 ! [-] Maximum ice-surface Newton iterations.
 
     public :: init_heatlink_config
@@ -22,7 +22,7 @@ contains
 
         LICE = .false.
         LHEAT_DIAG = .false.
-        CHEAT_LOG = 'log_HEAT-LINK.txt'
+        CHEAT_LOG = 'HEAT-LINK_monitor.log'
         NNEWTON_MAX_ICE = 4
 
         open(newunit = nml_unit, file = trim(nml_path), status = 'old', &

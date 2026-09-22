@@ -153,7 +153,7 @@ subroutine init_heatlink_river_mod(dt)
 
     call init_heatlink_log(CAMA_LOG_UNIT)
     call write_heatlink_time('INIT', KSTEP, IYYYYMMDD, IHHMM)
-    write(HEAT_LOG_UNIT, '(a)') '[heatlink_river_mod/init_heatlink_river_mod]'
+    write(HEAT_LOG_UNIT, '(a)') '[initialization]'
     call init_heatlink_diagnostics()
     if (LICE) then
         write(HEAT_LOG_UNIT, '(a,i0)') &
@@ -556,6 +556,7 @@ subroutine calc_heatlink(dt)
         call update_output('RIVICE_ENERGY_UNAPPLIED', phase_unapplied_energy)
     endif
     if (LHEAT_DIAG) then
+        write(HEAT_LOG_UNIT,'(a)') '[advection]'
         write(HEAT_LOG_UNIT, '(a,5(1x,es12.4))') &
         &   '  advection budget max: heat[J], water[m3], unapplied[J], domain_heat[J], domain_relative[-] =', &
         &   maximum_advection_heat_budget_error_j, &
@@ -583,6 +584,7 @@ subroutine calc_heatlink(dt)
         maximum_advection_domain_combined_energy_budget_error_j = 0.0_JPRD
         maximum_advection_relative_domain_combined_energy_budget_error = 0.0_JPRD
         if (LICE) then
+            write(HEAT_LOG_UNIT,'(a)') '[local heat budget]'
             call log_ice_budget()
         endif
     endif
@@ -927,7 +929,7 @@ subroutine fin_heatlink_river_mod()
     &   fin_thermo_mod
 
     call fin_heatlink_diagnostics()
-    write(HEAT_LOG_UNIT, '(a)') '[fin_heatlink_river_mod]'
+    write(HEAT_LOG_UNIT, '(a)') '[finalization]'
     if (allocated(local_added_energy_j)) deallocate(local_added_energy_j)
     if (allocated(advection_throughput_j)) deallocate(advection_throughput_j)
     if (allocated(local_dry_energy_j)) deallocate(local_dry_energy_j)

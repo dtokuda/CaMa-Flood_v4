@@ -30,7 +30,7 @@ subroutine init_heatlink_log(cama_log_unit)
     log_open = .true.
     write(cama_log_unit, '(a,1x,a)') 'HEAT-LINK log:', trim(CHEAT_LOG)
     write(HEAT_LOG_UNIT, '(a,l1)') 'HEAT-LINK detailed monitoring: LHEAT_DIAG = ', LHEAT_DIAG
-    write(HEAT_LOG_UNIT, '(a)') 'HEAT_TIME: model calendar; BEGIN/END bracket one outer update. Internal HEAT_STEP times are elapsed seconds from run start.'
+    write(HEAT_LOG_UNIT, '(a)') 'Calendar times follow the CaMa model clock. Interval end/duration values are seconds from run start.'
     if (.not. LHEAT_DIAG) write(HEAT_LOG_UNIT, '(a)') &
     &   'Detailed heat budgets are disabled; temperature checks and physical safeguards remain active.'
 end subroutine init_heatlink_log
@@ -40,7 +40,22 @@ subroutine write_heatlink_time(stage, step, date, hhmm)
     integer, intent(in) :: step ! [-] CaMa outer time-step counter at this marker.
     integer, intent(in) :: date ! [YYYYMMDD] Model calendar date from YOS_CMF_TIME.
     integer, intent(in) :: hhmm ! [HHMM] Model time from YOS_CMF_TIME; not wall-clock time.
-    write(HEAT_LOG_UNIT, '(a,1x,a,1x,i0,1x,i8.8,1x,i4.4)') 'HEAT_TIME', stage, step, date, hhmm
+    character(len = 32) :: label ! [-] Human-readable position within the outer update.
+    select case(stage)
+    case('INIT')
+        label = 'initialization'
+    case('BEGIN')
+        label = 'begin'
+    case('LOCAL_END')
+        label = 'local heat budget target'
+    case('END')
+        label = 'end'
+    case default
+        label = stage
+    end select
+    write(HEAT_LOG_UNIT, '(i4.4,a,i2.2,a,i2.2,1x,i2.2,a,i2.2,a,i0,2a)') &
+    &   date/10000,'/',mod(date/100,100),'/',mod(date,100),hhmm/100,':',mod(hhmm,100), &
+    &   '  step = ',step,'  ',trim(label)
 end subroutine write_heatlink_time
 
 subroutine fin_heatlink_log()

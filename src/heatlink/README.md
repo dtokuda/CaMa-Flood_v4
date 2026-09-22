@@ -18,11 +18,11 @@ In detailed mode, record the difference between expected energy and the energy r
 &NHEATLINK
     LICE = .TRUE.
     LHEAT_DIAG = .FALSE.
-    CHEAT_LOG = 'log_HEAT-LINK.txt'
+    CHEAT_LOG = 'HEAT-LINK_monitor.log'
 /
 ```
 
-`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `CHEAT_LOG` defaults to `log_HEAT-LINK.txt` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
+`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `CHEAT_LOG` defaults to `HEAT-LINK_monitor.log` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
 
 | Check or operation | Always active | Additional work with `LHEAT_DIAG = .TRUE.` |
 |---|---|---|
@@ -31,7 +31,7 @@ In detailed mode, record the difference between expected energy and the energy r
 | End-of-outer-update water temperature | Finite-value check; wet/dry minima, maxima, maximum cell index and volume; warning above 350 K | Same checks |
 | Calendar timestamps and heatlink errors | Separate heat log | Same log |
 | Interval heat closure and independent extrema | Not evaluated | Advection, local and combined outer update: ΔE, Q, U, residuals, ratios and extrema |
-| Cause-specific unapplied heat and cumulative closure | Not aggregated | Full `HEAT_RESIDUAL`, `HEAT_CLOSURE` and `HEAT_CONSERVATION` records |
+| Cause-specific unapplied heat and cumulative closure | Not aggregated | Cause-specific totals, process closure and a cumulative domain ledger |
 | Transport/phase budget summaries | Not aggregated | Cell and domain maximum-error summaries |
 
 The switch skips diagnostic snapshots, compensated domain reductions, cause scans and their log records; it is not just an output filter. The physical phase kernel still calculates its existing residual outputs for `RIVICE_*` output requests, independently of this switch. Minimal mode does **not** establish heat-budget closure: use detailed mode when auditing conservation. Neither mode redistributes or reinjects unapplied heat.
@@ -50,62 +50,81 @@ The first two modules are separated by diagnostic responsibility and time scale,
 
 Represented energy consists of water sensible heat relative to the melting point and the latent energy of ice at the melting point. Ice-surface temperature is a massless diagnostic; it does not represent sensible heat stored inside ice.
 
-- `delta[J]`: represented energy increment ΔE during the interval.
-- `net[J]`: net external heat input Q during the same interval. Internal transport is excluded.
-- `exchange_abs[J]`: absolute external heat exchange S during the interval. For local heating, sum the absolute **net input per cell**, not the absolute values of every radiation and turbulent flux component.
-- `unapplied[J]`: signed unapplied heat U. Positive means unapplied heating; negative means unapplied cooling.
-- `unapplied_abs[J]`: absolute unapplied heat without cancellation between its positive and negative contributions.
+- `change [J]`: represented energy increment ΔE during the interval.
+- `net input [J]`: net external heat input Q during the same interval. Internal transport is excluded.
+- `absolute exchange [J]`: absolute external heat exchange S during the interval. For local heating, sum the absolute **net input per cell**, not the absolute values of every radiation and turbulent flux component.
+- `unapplied: signed [J]`: signed unapplied heat U. Positive means unapplied heating; negative means unapplied cooling.
+- `unapplied: absolute [J]`: absolute unapplied heat without cancellation between its positive and negative contributions.
 - `raw[J] = ΔE − Q`: residual before accounting for unapplied heat.
 - `adjusted[J] = ΔE − Q + U`: residual after accounting for unapplied heat in the diagnostic ledger.
-- `storage_scale[J]`: an energy-storage scale in which sensible heat and ice latent energy do not cancel.
+- `storage scale [J]`: an energy-storage scale in which sensible heat and ice latent energy do not cancel.
 
-Compute ΔE directly from cellwise volume, temperature and ice increments. Subtracting two domain energy totals is not the primary diagnostic. Use `JPRD` Neumaier compensated sums. The comparison fields `naive_delta[J]` and `naive_adjusted[J]` retain the large-total subtraction.
+Compute ΔE directly from cellwise volume, temperature and ice increments. Subtracting two domain energy totals is not the primary diagnostic. Use `JPRD` Neumaier compensated sums. The comparison fields `large-total comparison: change [J]` and `adjusted [J]` retain the large-total subtraction.
 
-Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_scale`. Flag zero-denominator and unrepresentable ratios as invalid and exclude them from ratio extrema. A zero placeholder in such a field is not a valid zero ratio. Energy and ratio extrema are selected independently and may occur at different times.
+Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_scale`. Flag zero-denominator and unrepresentable ratios as invalid and exclude them from ratio extrema. The log displays `undefined` for such a ratio, rather than a misleading zero. Energy and ratio extrema are selected independently and may occur at different times.
 
 ## Reading the log
 
-Heatlink-specific messages go to `CHEAT_LOG` (normally `log_HEAT-LINK.txt`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Detailed mode writes heat-budget column definitions during initialization. Minimal mode writes its monitoring setting explicitly and retains temperature records.
+Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK_monitor.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Each physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
 
-| Record | Meaning |
+| Heading or item | Meaning |
 |---|---|
-| `HEAT_TIME` | Model calendar marker: stage, CaMa step counter, YYYYMMDD and HHMM |
-| `HEAT_STEP advection` | Domain heat budget for each internal advection step |
-| `HEAT_STEP local` | Domain heat budget for each local heat update |
-| `HEAT_STEP hour` | Combined advection and local budget over an outer update interval; one hour in the annual validation |
-| `HEAT_STEP_COUNTS` | Number of intervals and invalid ratios for each process |
-| `HEAT_STEP_EXTREME` | Minimum/maximum of each metric, interval index and the complete corresponding diagnostic record, written at shutdown |
-| `HEAT_RESIDUAL` | Cause-specific unapplied heat: dry advection, advection reconstruction, dry local update, ice handling and the no-ice melting-point floor |
-| `HEAT_CONSERVATION` | Domain budget since this run started; cumulative supporting information |
-| `HEAT_CLOSURE` | Process closure information; overlaps the domain residual and must not be added to it |
-| `THERMAL_WET` / `THERMAL_DRY` | Wet/dry temperature ranges and the cell index of the maximum temperature |
+| `YYYY/MM/DD HH:MM  step = ...  begin/end` | Model calendar and CaMa outer step counter, before advection and after the completed local update |
+| `[advection]` | Every internal advection interval, dry/reconstruction unapplied heat and transport closure summaries |
+| `[local heat budget]` | Each local (vertical heat exchange and phase-change) update, dry/ice/floor unapplied heat and wet/dry water temperatures |
+| `[combined step]` | Combined advection and local budget over one outer update; one hour in the validation runs |
+| `[cumulative heat budget]` | Domain ledger since this run started; supporting information, not the primary conservation test |
+| `extrema over this run` | Per-process minimum/maximum of each metric, interval index and the complete corresponding record at shutdown |
+| `closure since run start` | Auxiliary process closure; overlaps the domain residual and must not be added to it |
 
-`HEAT_TIME BEGIN` records the current CaMa calendar before hydraulic advection. `HEAT_TIME LOCAL_END` identifies the target date/time of the local update; `HEAT_TIME END` follows the completed heat update and uses the same `JYYYYMMDD` and `JHHMM` as `CMF::DRV_ADVANCE END` in the CaMa log. The counter follows CaMa's own update convention. These markers include day/year rollover and bracket the internal-step records. Each completed outer update flushes the heat log.
+For example, the start of a detailed interval is written as follows (numbers shortened here):
 
-In detailed mode, `elapsed_seconds` accumulates internal time steps from the start of this run and `dt_seconds` is the monitored interval length. These distinguish adaptive internal steps within the calendar markers; they are not wall-clock timestamps. Allow for accumulated internal-step roundoff when converting extrema times back to calendar dates. Extrema are temporal extrema of interval **domain** budgets, not spatial extrema of cellwise errors. Restart runs start new diagnostic accumulations.
+```text
+2000/01/01 00:00  step = 1  begin
+[advection]
+  interval = 1; end [s] = 3.27272737E+02; duration [s] = 3.27272737E+02
+  energy [J]: change = 1.09894276E+16; net input = 1.09894276E+16; absolute exchange = 1.09894276E+16
+  unapplied [J]: signed = -7.05345297E+01; absolute = 2.56328193E+04
+  residual [J]: raw = 2.36000000E+02; adjusted = 1.65465470E+02
+```
 
-For example, inspect interval records and final extrema with:
+The `begin` calendar is recorded before hydraulic advection. The `local heat budget target` and `end` calendars use the same `JYYYYMMDD` and `JHHMM` as `CMF::DRV_ADVANCE END` in the CaMa log. These are model dates, not wall-clock timestamps. Day/year rollover is retained, and each completed outer update flushes the log.
+
+`end [s]` accumulates internal time steps from the start of this run; `duration [s]` is the interval length. These distinguish adaptive internal intervals within the formatted calendar markers. Allow for accumulated internal-step roundoff when converting extrema times back to dates. Extrema are temporal extrema of interval **domain** budgets, not spatial extrema of cellwise errors. Restart runs start new diagnostic accumulations.
+
+Existing parsers of the former machine-prefixed records must be updated to read the process headings and labelled fields. Previously generated logs are not rewritten. For a quick inspection:
 
 ```sh
-rg '^HEAT_STEP (advection|local|hour) ' /path/to/run/log_HEAT-LINK.txt
-rg '^HEAT_STEP_(COUNTS|EXTREME) ' /path/to/run/log_HEAT-LINK.txt
-rg '^(HEAT_RESIDUAL|HEAT_CONSERVATION|HEAT_CLOSURE|THERMAL_)' /path/to/run/log_HEAT-LINK.txt
+less /path/to/run/HEAT-LINK_monitor.log
+rg -n '^\[(advection|local heat budget|combined step)\]|extrema over this run' /path/to/run/HEAT-LINK_monitor.log
 ```
 
 Detailed monitoring evaluates and logs every internal transport interval, requiring extra memory, arithmetic and log I/O. It is disabled by default. It never corrects physical state using diagnostic values. Runtime comparisons should use identical compiler options, forcing, time intervals, output settings and OpenMP configuration; concurrent annual runs alone do not isolate monitoring cost.
 
 With `LICE = .FALSE.`, unapplied cooling caused by the melting-point floor remains in `raw` and U. A small `adjusted` residual does not mean that cooling was physically applied. With `LICE = .TRUE.`, evaluate dry-state and other unapplied heat separately as well. These domain diagnostics do not rule out cancellation between cells or account for heat fluxes never computed because of dry-state checks.
 
+## Diagnostic reduction performance
+
+Large domains are split into fixed 4,096-cell blocks. OpenMP evaluates independent blocks when there are at least 32,768 cells. The primary interval sums use Neumaier compensation inside each block and during the ordered final merge; both the leading sum and its correction are merged without first rounding them together. Block boundaries and merge order do not depend on the thread count. Small domains follow the same grouping without parallel workers.
+
+The auxiliary large-total comparison is computed during the same pass as the cellwise increment, eliminating additional domain scans. Its uncompensated domain sums now use block grouping, so its roundoff can differ from the earlier serial comparison. Cause-specific cumulative sums also use fixed blocks and retain unique affected-cell counts incrementally. Those supporting totals may differ in roundoff; they remain separate from the primary compensated interval audit.
+
+Cellwise transport diagnostics are filled in the existing parallel reconstruction loop. No diagnostic value changes the physical update. Every internal advection interval, local update, combined interval and independent extremum is still monitored in detailed mode; the speedup does not sample or skip intervals.
+
 ## Measured monitoring cost
 
-A matched short-run benchmark on Apple M4 Pro, GNU Fortran 13.2.0, double precision, `-O3`, NetCDF and eight OpenMP threads (`OMP_WAIT_POLICY=PASSIVE`, `OMP_DYNAMIC=FALSE`) used MIROC6 forcing for 1–3 January 2000. Each executable/ice setting had one warm-up, followed by three serial repetitions in rotating order. Median wall time includes startup, initialization and I/O.
+A matched short-run benchmark on Apple M4 Pro, GNU Fortran 13.2.0, double precision, `-O3`, NetCDF and eight OpenMP threads (`OMP_WAIT_POLICY=PASSIVE`, `OMP_DYNAMIC=FALSE`) used MIROC6 forcing for 1–3 January 2000. PR2, the previous PR3 with detail ON, and the new OFF/ON modes each had one warm-up per ice setting, followed by three serial repetitions in rotating order. Median wall time includes initialization and I/O.
 
-| LICE | PR2 [s] | PR3 detail OFF [s] | Relative to PR2 | PR3 detail ON [s] | Relative to PR2 |
-|---|---:|---:|---:|---:|---:|
-| TRUE | 18.892 | 17.904 | -5.2% | 25.160 | +33.2% |
-| FALSE | 9.717 | 9.379 | -3.5% | 14.120 | +45.3% |
+| LICE | PR2 [s] | Previous ON [s] | New OFF [s] | New ON [s] | New ON vs PR2 | ON speedup |
+|---|---:|---:|---:|---:|---:|---:|
+| TRUE | 18.551 | 24.864 | 17.832 | 22.515 | +21.4% | 9.4% |
+| FALSE | 9.576 | 13.994 | 9.311 | 12.760 | +33.2% | 8.8% |
 
-OFF also omits the pre-existing transport/phase summary reductions that PR2 always performed. These figures compare complete run configurations, not just the new arithmetic. They do not predict annual-run overhead. All output/restart binaries are bit-identical between OFF, ON and the preceding stabilized PR3 for both ice settings; detailed diagnostic records are unchanged. The separate heat log is about 22 kB with detail OFF versus 565–608 kB with detail ON for these three-day runs.
+The extra cost relative to PR2 fell from 34.0% to 21.4% with ice and from 46.1% to 33.2% without ice. Detailed ON is still more expensive; OFF remains the default. OFF was 3.9%/2.8% faster than PR2 in these comparisons, partly because it also omits the pre-existing budget summaries. These short runs do not predict annual overhead.
+
+Across all repetitions, output/restart binaries are bit-identical between new OFF, new ON and the preceding PR3. All 792 advection intervals, 72 local updates, 72 combined intervals and 48 extrema records per detailed run were verified. The primary interval fields (elapsed time/duration, ΔE, Q, S, U, absolute U, raw/adjusted residual, storage scale and all ratios) match the previous diagnostic values exactly in these cases. Event counts, affected-cell counts and cellwise maxima also match. This is a measured result, not a guarantee that regrouped floating-point reductions always match an earlier serial order.
+
+The auxiliary large-total comparison and cumulative cause sums differ in rounding, as expected from their changed summation order. They do not alter the primary interval audit or physical state. The readable log uses about 1.02–1.08 MB with detail ON and 41 kB with detail OFF over these three days. The log format is intentionally labelled rather than compact positional records.
 
 ## Regression tests
 
@@ -130,7 +149,7 @@ python3 src/heatlink/test/test_heatlink_log_errors.py
 (cd src/phys && ./test_heat_budget)
 ```
 
-Configuration/log tests also check default/reset behavior, custom filenames, file ownership, invalid settings, already-open/inaccessible paths and calendar marker formatting across a year boundary. The added numerical tests cover small reproductions of observed anomalous states, values below/at/above the dry threshold, drying, rewetting, refreezing, melting, signed unapplied heat, tiny-flux overflow, boundary heat exchange, cancellation-prone synthetic states, invalid ratios and independent extrema. Run them alongside the existing water/ice transport, boundary and phase-change tests. `test_river_water_advection_cold_inflow` is expected to stop because liquid inflow is below the melting point.
+Configuration/log tests also check default/reset behavior, custom filenames, file ownership, invalid settings, already-open/inaccessible paths and calendar marker formatting across a year boundary. The diagnostic tests exercise cancellation across block boundaries, a partial final block, repeated affected-cell events, maximum-value ties and 1–8 OpenMP threads. The step monitor also passes without OpenMP. The added numerical tests cover small reproductions of observed anomalous states, values below/at/above the dry threshold, drying, rewetting, refreezing, melting, signed unapplied heat, tiny-flux overflow, boundary heat exchange, cancellation-prone synthetic states, invalid ratios and independent extrema. Run them alongside the existing water/ice transport, boundary and phase-change tests. `test_river_water_advection_cold_inflow` is expected to stop because liquid inflow is below the melting point.
 
 When switching precision, clean and rebuild all dependencies so that objects and modules with different kinds are not mixed. `DSINGLE=-DSinglePrec_CMF` selects single precision; `DSINGLE=` selects double precision. The existing single-precision ice-surface Newton convergence test failure is a separate issue; this stabilization does not change its convergence criterion.
 

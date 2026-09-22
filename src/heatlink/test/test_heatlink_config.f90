@@ -13,7 +13,7 @@ program test_heatlink_config
     call init_heatlink_config( &
     &   'test/heatlink_config_defaults.nml', 6, .false., .false.)
     if (LHEAT_DIAG) error stop 'LHEAT_DIAG default is not false'
-    if (CHEAT_LOG /= 'log_HEAT-LINK.txt') error stop 'CHEAT_LOG default is incorrect'
+    if (CHEAT_LOG /= 'HEAT-LINK_monitor.log') error stop 'CHEAT_LOG default is incorrect'
     if (LICE) error stop 'LICE default is not false'
     if (NNEWTON_MAX_ICE /= 4) error stop 'NNEWTON_MAX_ICE default is not 4'
 
@@ -25,7 +25,7 @@ program test_heatlink_config
     if (.not. LHEAT_DIAG) error stop 'LHEAT_DIAG was not read'
     if (CHEAT_LOG /= 'custom_heat.log') error stop 'CHEAT_LOG was not read'
     call init_heatlink_config('test/heatlink_config_defaults.nml', 6, .false., .false.)
-    if (LHEAT_DIAG .or. CHEAT_LOG /= 'log_HEAT-LINK.txt') error stop 'monitor settings were not reset'
+    if (LHEAT_DIAG .or. CHEAT_LOG /= 'HEAT-LINK_monitor.log') error stop 'monitor settings were not reset'
 
     write(*, '(a)') 'test_heatlink_config: PASS'
 end program test_heatlink_config

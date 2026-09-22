@@ -32,8 +32,8 @@ program test_heatlink_log
     do
         read(unit, '(a)', iostat = ios) line
         if (ios /= 0) exit
-        if (trim(line) == 'HEAT_TIME BEGIN 10 20001231 2330') found = found + 1
-        if (trim(line) == 'HEAT_TIME END 11 20010101 0000') found = found + 1
+        if (trim(line) == '2000/12/31 23:30  step = 10  begin') found = found + 1
+        if (trim(line) == '2001/01/01 00:00  step = 11  end') found = found + 1
         if (trim(line) == 'sentinel heat diagnostic') found = found + 1
     enddo
     close(unit, status = 'delete')

@@ -32,7 +32,7 @@ module heatlink_diagnostics_mod
     real(kind = JPRD), save :: hour_start_seconds = 0.0_JPRD ! [s] Elapsed time at the current outer-update start.
     real(kind = JPRD), save :: advection_dt_seconds = 0.0_JPRD ! [s] Duration of the current advection interval.
     character(len = 24), parameter :: residual_reasons(5) = [character(len = 24) :: & ! [-] Labels for the five unapplied-heat causes.
-    &   'advection_dry', 'advection_reconstruction', 'dry_local', 'ice_model', 'no_ice_floor']
+    &   'dry holding', 'reconstruction', 'dry local update', 'ice handling', 'melting-point floor']
 contains
 
 subroutine init_heatlink_diagnostics()
@@ -46,13 +46,13 @@ subroutine init_heatlink_diagnostics()
     hour_monitor_active = .false.
     monitor_seconds = 0.0_JPRD
     hour_start_seconds = 0.0_JPRD
-    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP columns: stage step elapsed_seconds dt_seconds delta[J] net[J] exchange_abs[J] unapplied[J] unapplied_abs[J] raw[J] adjusted[J] storage_scale[J] raw_exchange_ratio adjusted_exchange_ratio unapplied_exchange_ratio adjusted_storage_ratio naive_delta[J] naive_adjusted[J] exchange_ratio_valid storage_ratio_valid'
-    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP uses cellwise state increments and interval-only compensated sums. Invalid ratios are placeholders; do not interpret zero as a valid ratio.'
-    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP_EXTREME columns: stage metric min_or_max step followed by the same 16 real fields as HEAT_STEP. Extrema cover this run; errors are not accumulated.'
-    write(HEAT_LOG_UNIT, '(a)') 'HEAT_RESIDUAL columns: reason signed[J] positive[J] negative[J] absolute[J] max[J] events cells max_cell throughput[J]'
-    write(HEAT_LOG_UNIT, '(a)') 'HEAT_CONSERVATION columns: initial[J] current[J] water_net[J] ice_net[J] local_net[J] water_abs[J] ice_abs[J] local_abs[J] unapplied[J] raw[J] adjusted[J] raw_fraction adjusted_fraction water_steps ice_steps local_steps'
-    write(HEAT_LOG_UNIT, '(a)') 'HEAT_CONSERVATION raw = current - initial - net_input; adjusted = raw + signed_unapplied. Ice storage is melting-point latent energy; ice skin is massless.'
-    write(HEAT_LOG_UNIT, '(a)') 'HEAT_RESIDUAL totals start at this run; diagnostics are never reinjected. Internal transport is counted at both ends.'
+    write(HEAT_LOG_UNIT,'(a)') '[monitor definitions]'
+    write(HEAT_LOG_UNIT,'(a)') '  Interval budgets use cellwise state increments and compensated sums; no annual subtraction is used.'
+    write(HEAT_LOG_UNIT,'(a)') '  raw = change - net input; adjusted = raw + signed unapplied heat.'
+    write(HEAT_LOG_UNIT,'(a)') '  Exchange ratios use absolute external heat in the same interval; storage scale does not cancel sensible and latent heat.'
+    write(HEAT_LOG_UNIT,'(a)') '  Undefined ratios are excluded from extrema. Extrema are temporal extrema of domain budgets, not spatial cell extrema.'
+    write(HEAT_LOG_UNIT,'(a)') '  Cumulative budgets and process closure overlap interval diagnostics: do not add them. No diagnostic heat is reinjected.'
+    write(HEAT_LOG_UNIT,'(a)') '  Ice storage is melting-point latent energy; ice skin temperature is massless. Cause throughput counts internal transport at both ends.'
     advection_dt_seconds = 0.0_JPRD
 end subroutine init_heatlink_diagnostics
 
@@ -211,7 +211,7 @@ subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
     real(kind = JPRB), intent(in) :: floor_energy_j(:) ! [J] Signed heat omitted by the no-ice melting-point floor.
     real(kind = JPRB), allocatable, intent(in) :: phase_unapplied_energy(:) ! [J] Signed heat unapplied by phase handling; ice only.
     real(kind = JPRB), allocatable, intent(in) :: phase_energy_budget_error(:) ! [J] Local phase-change closure error; ice only.
-    integer(kind = JPIM) :: reason ! [-] Index of an unapplied-heat cause.
+
 
     if (.not. LHEAT_DIAG) return
     if (LICE) then
@@ -245,15 +245,19 @@ subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
     endif
     call record_heat_residual(residual_stats(3), real(local_dry_energy_j(:NSEQALL), JPRD), &
     &   real(local_throughput_j(:NSEQALL), JPRD))
-    do reason = 1, size(residual_stats)
-        call write_heat_residual(HEAT_LOG_UNIT, residual_reasons(reason), residual_stats(reason))
-    enddo
+    write(HEAT_LOG_UNIT,'(a)') '[advection]'
+    call write_heat_residual(HEAT_LOG_UNIT,residual_reasons(1),residual_stats(1))
+    call write_heat_residual(HEAT_LOG_UNIT,residual_reasons(2),residual_stats(2))
+    call write_heat_residual(HEAT_LOG_UNIT,'domain',closure_stats(1),'closure')
+    write(HEAT_LOG_UNIT,'(a)') '[local heat budget]'
+    call write_heat_residual(HEAT_LOG_UNIT,residual_reasons(3),residual_stats(3))
+    call write_heat_residual(HEAT_LOG_UNIT,residual_reasons(4),residual_stats(4))
+    call write_heat_residual(HEAT_LOG_UNIT,residual_reasons(5),residual_stats(5))
+    if (LICE) call write_heat_residual(HEAT_LOG_UNIT,'phase change',closure_stats(2),'closure')
     call record_heat_exchange(conservation_stats, 3, sum(real(local_added_energy_j(:NSEQALL), JPRD)), &
     &   sum(abs(real(local_added_energy_j(:NSEQALL), JPRD))))
     call write_heat_conservation(HEAT_LOG_UNIT, conservation_stats, represented_domain_energy_j(wattmp, icevol, icevol_excess), &
     &   sum(residual_stats%positive_j) + sum(residual_stats%negative_j))
-    call write_heat_residual(HEAT_LOG_UNIT, 'advection_domain', closure_stats(1), 'HEAT_CLOSURE')
-    if (LICE) call write_heat_residual(HEAT_LOG_UNIT, 'local_phase', closure_stats(2), 'HEAT_CLOSURE')
 
 end subroutine finish_local_diagnostics
 
@@ -268,19 +272,26 @@ subroutine check_heatlink_temperature(wattmp, watsto)
         flush(HEAT_LOG_UNIT)
         error stop 'Non-finite river water temperature; see CHEAT_LOG.'
     endif
+    write(HEAT_LOG_UNIT,'(a)') '[local heat budget]'
     wet = watsto(:NSEQALL) > real(STO_IGNORE, JPRB)
     max_cell = maxloc(wattmp(:NSEQALL), mask = wet)
     if (any(wet)) then
-        write(HEAT_LOG_UNIT, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_WET', count(wet), max_cell(1), &
-        &   minval(wattmp(:NSEQALL), mask = wet), maxval(wattmp(:NSEQALL), mask = wet), watsto(max_cell(1))
+        write(HEAT_LOG_UNIT,'(a)') '  wet water temperature:'
+        write(HEAT_LOG_UNIT,'(a,i0,a,i0)') '    cells = ',count(wet),'; maximum cell = ',max_cell(1)
+        write(HEAT_LOG_UNIT,'(a,es24.16,a,es24.16)') '    temperature [K]: minimum = ', &
+        &   minval(wattmp(:NSEQALL),mask = wet),'; maximum = ',maxval(wattmp(:NSEQALL),mask = wet)
+        write(HEAT_LOG_UNIT,'(a,es24.16)') '    volume at maximum [m3] = ',watsto(max_cell(1))
     endif
     max_cell = maxloc(wattmp(:NSEQALL), mask = .not. wet)
     if (any(.not. wet)) then
-        write(HEAT_LOG_UNIT, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_DRY', count(.not. wet), max_cell(1), &
-        &   minval(wattmp(:NSEQALL), mask = .not. wet), maxval(wattmp(:NSEQALL), mask = .not. wet), watsto(max_cell(1))
+        write(HEAT_LOG_UNIT,'(a)') '  dry water temperature:'
+        write(HEAT_LOG_UNIT,'(a,i0,a,i0)') '    cells = ',count(.not. wet),'; maximum cell = ',max_cell(1)
+        write(HEAT_LOG_UNIT,'(a,es24.16,a,es24.16)') '    temperature [K]: minimum = ', &
+        &   minval(wattmp(:NSEQALL),mask = .not. wet),'; maximum = ',maxval(wattmp(:NSEQALL),mask = .not. wet)
+        write(HEAT_LOG_UNIT,'(a,es24.16)') '    volume at maximum [m3] = ',watsto(max_cell(1))
     endif
     if (maxval(wattmp(:NSEQALL)) > 350.0_JPRB) &
-    &   write(HEAT_LOG_UNIT, '(a)') 'WARNING: river water temperature exceeds 350 K; inspect THERMAL_WET/THERMAL_DRY.'
+    &   write(HEAT_LOG_UNIT, '(a)') '  WARNING: river water temperature exceeds 350 K; inspect wet/dry temperature ranges.'
 end subroutine check_heatlink_temperature
 
 subroutine fin_heatlink_diagnostics()
