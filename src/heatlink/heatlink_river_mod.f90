@@ -27,7 +27,11 @@ module heatlink_river_mod
     use heat_flux_mod, only: &
     &   ICE_SURFACE_NEWTON_RESIDUAL_TOLERANCE_W_M2, calc_ice_surface_heat_flux
     use heat_budget_mod, only: &
-    &   water_ice_mass_kg, water_ice_energy_j
+    &   water_ice_mass_kg, water_ice_energy_j, apply_liquid_temperature_floor
+    use heat_residual_mod, only: HeatResidualStats, record_heat_residual, write_heat_residual, &
+    &   HeatConservationStats, record_heat_exchange, write_heat_conservation
+    use heat_step_monitor_mod, only: HeatStepState, HeatStepLedger, HeatStepStats, &
+    &   capture_heat_step, measure_heat_step, add_step_heat, step_sum, monitor_heat_step, write_heat_step_extrema
     use heatlink_velocity_mod, only: &
     &   diagnose_flow_velocity, floodplain_flow_cross_section
     use water_storage_adapter_mod, only: &
@@ -54,6 +58,19 @@ module heatlink_river_mod
     &   calc_heatlink, &
     &   write_heatlink_restart, fin_heatlink_river_mod
 
+    type(HeatResidualStats), save :: residual_stats(5), closure_stats(2)
+    type(HeatConservationStats), save :: conservation_stats
+    type(HeatStepState), save :: process_start, hour_start
+    type(HeatStepLedger), save :: process_ledger, hour_ledger
+    type(HeatStepStats), save :: step_stats(3)
+    logical, save :: hour_monitor_active = .false.
+    real(kind=JPRD), save :: monitor_seconds = 0.0_JPRD, hour_start_seconds = 0.0_JPRD
+    real(kind=JPRD), save :: advection_dt_seconds = 0.0_JPRD
+    real(kind=JPRB), allocatable, save :: local_added_energy_j(:)
+    character(len=24), parameter :: residual_reasons(5) = [character(len=24) :: &
+    &   'advection_dry', 'advection_reconstruction', 'dry_local', 'ice_model', 'no_ice_floor']
+    real(kind=JPRD), allocatable, save :: advection_throughput_j(:)
+    real(kind=JPRB), allocatable, save :: local_dry_energy_j(:), local_throughput_j(:), floor_energy_j(:)
     real(kind=JPRB), allocatable, save :: &
     &   wattmp(:) ! [K] river water temperature
 
@@ -140,7 +157,23 @@ subroutine init_heatlink_river_mod(dt)
     type(DateTime), intent(in) :: dt
     logical :: is_found
 
+    residual_stats = HeatResidualStats()
+    closure_stats = HeatResidualStats()
+    conservation_stats = HeatConservationStats()
+    step_stats = HeatStepStats()
+    process_ledger = HeatStepLedger()
+    hour_ledger = HeatStepLedger()
+    hour_monitor_active = .false.
+    monitor_seconds = 0.0_JPRD
+    hour_start_seconds = 0.0_JPRD
+    write(LOGNAM,'(a)') 'HEAT_STEP columns: stage step elapsed_seconds dt_seconds delta[J] net[J] exchange_abs[J] unapplied[J] unapplied_abs[J] raw[J] adjusted[J] storage_scale[J] raw_exchange_ratio adjusted_exchange_ratio unapplied_exchange_ratio adjusted_storage_ratio naive_delta[J] naive_adjusted[J] exchange_ratio_valid storage_ratio_valid'
+    write(LOGNAM,'(a)') 'HEAT_STEP uses cellwise state increments and interval-only compensated sums. Invalid ratios are placeholders; do not interpret zero as a valid ratio.'
+    write(LOGNAM,'(a)') 'HEAT_STEP_EXTREME columns: stage metric min_or_max step followed by the same 16 real fields as HEAT_STEP. Extrema cover this run; errors are not accumulated.'
     write(LOGNAM, '(a)') '[heatlink_river_mod/init_heatlink_river_mod]'
+    write(LOGNAM, '(a)') 'HEAT_RESIDUAL columns: reason signed[J] positive[J] negative[J] absolute[J] max[J] events cells max_cell throughput[J]'
+    write(LOGNAM, '(a)') 'HEAT_CONSERVATION columns: initial[J] current[J] water_net[J] ice_net[J] local_net[J] water_abs[J] ice_abs[J] local_abs[J] unapplied[J] raw[J] adjusted[J] raw_fraction adjusted_fraction water_steps ice_steps local_steps'
+    write(LOGNAM, '(a)') 'HEAT_CONSERVATION raw = current - initial - net_input; adjusted = raw + signed_unapplied. Ice storage is melting-point latent energy; ice skin is massless.'
+    write(LOGNAM, '(a)') 'HEAT_RESIDUAL totals start at this run; diagnostics are never reinjected. Internal transport is counted at both ends.'
     if (LICE) then
         write(LOGNAM, '(a,i0)') &
         &   '  maximum river-ice surface Newton iterations = ', NNEWTON_MAX_ICE
@@ -160,6 +193,9 @@ subroutine init_heatlink_river_mod(dt)
     call init_topo_mod()
     call init_thermo_mod()
 
+    allocate(local_added_energy_j(NSEQMAX), source=0.0_JPRB)
+    allocate(advection_throughput_j(NSEQMAX), source=0.0_JPRD)
+    allocate(local_dry_energy_j(NSEQMAX), local_throughput_j(NSEQMAX), floor_energy_j(NSEQMAX), source=0.0_JPRB)
     allocate(wattmp(NSEQMAX), source=0.0_JPRB)
     allocate(advection_initial_liquid_volume_m3(NSEQMAX), source=0.0_JPRD)
     allocate(advection_heat_budget_error_j(NSEQMAX), source=0.0_JPRD)
@@ -244,7 +280,69 @@ subroutine enforce_liquid_inflow_temperature(temperature_k)
 end subroutine enforce_liquid_inflow_temperature
 
 
+! Independent state-versus-external-input audit, using canonical hydraulic storage.
+! No diagnostic value is fed back into water, ice, temperature, or flow.
+function represented_domain_energy_j() result(energy_j)
+    real(kind=JPRD) :: energy_j
+    energy_j = real(CW, JPRD) * real(RW, JPRD) * sum( &
+    &   (P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1)) * real(wattmp(:NSEQALL) - TMELT, JPRD))
+    if (LICE) energy_j = energy_j - real(RI, JPRD) * real(HFUS, JPRD) * &
+    &   (sum(real(icevol(:NSEQALL), JPRD)) + sum(real(icevol_excess(:NSEQALL), JPRD)))
+end function
+
+! Use the same canonical storage and energy reference as the annual ledger.
+subroutine capture_monitor_state(state)
+    type(HeatStepState), intent(inout) :: state
+    if (LICE) then
+        call capture_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1), &
+        &   real(wattmp(:NSEQALL)-TMELT,JPRD),real(icevol(:NSEQALL),JPRD),real(icevol_excess(:NSEQALL),JPRD))
+    else
+        call capture_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1),real(wattmp(:NSEQALL)-TMELT,JPRD))
+    endif
+end subroutine
+
+subroutine finish_monitor_state(state,ledger,index,stage,dt_seconds)
+    type(HeatStepState), intent(in) :: state
+    type(HeatStepLedger), intent(in) :: ledger
+    integer, intent(in) :: index
+    character(len=*), intent(in) :: stage
+    real(kind=JPRD), intent(in) :: dt_seconds
+    real(kind=JPRD) :: delta_j,storage_j,naive_delta_j
+    if (LICE) then
+        call measure_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1), &
+        &   real(wattmp(:NSEQALL)-TMELT,JPRD),real(CW,JPRD)*real(RW,JPRD),real(RI,JPRD)*real(HFUS,JPRD), &
+        &   delta_j,storage_j,naive_delta_j,real(icevol(:NSEQALL),JPRD),real(icevol_excess(:NSEQALL),JPRD))
+    else
+        call measure_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1), &
+        &   real(wattmp(:NSEQALL)-TMELT,JPRD),real(CW,JPRD)*real(RW,JPRD),real(RI,JPRD)*real(HFUS,JPRD), &
+        &   delta_j,storage_j,naive_delta_j)
+    endif
+    call monitor_heat_step(step_stats(index),LOGNAM,stage,monitor_seconds,dt_seconds, &
+    &   delta_j,storage_j,naive_delta_j,ledger)
+end subroutine
+
+subroutine add_process_to_hour()
+    real(kind=JPRD) :: q(4)
+    q = process_ledger%value+process_ledger%correction
+    call add_step_heat(hour_ledger,q(1),q(2),q(3),q(4))
+end subroutine
+
+subroutine begin_heat_conservation()
+    if (conservation_stats%initialized) return
+    conservation_stats%initial_j = represented_domain_energy_j()
+    conservation_stats%initialized = .true.
+end subroutine
+
 subroutine capture_river_water_advection_state()
+    call begin_heat_conservation()
+    call capture_monitor_state(process_start)
+    process_ledger = HeatStepLedger()
+    if (.not. hour_monitor_active) then
+        call capture_monitor_state(hour_start)
+        hour_start_seconds = monitor_seconds
+        hour_ledger = HeatStepLedger()
+        hour_monitor_active = .true.
+    endif
     advection_initial_liquid_volume_m3(:) = P2RIVSTO(:,1) + P2FLDSTO(:,1)
     if (LICE) then
         ! Refresh the mobile water-surface pool using the hydraulic geometry
@@ -264,6 +362,9 @@ subroutine advance_river_water_advection(dt_seconds)
     &   domain_combined_energy_scale_j, & ! [J] Absolute water-sensible plus ice-latent energy scale.
     &   volumetric_ice_latent_energy_j_m3 ! [J m-3] Magnitude of melting-point ice latent energy.
 
+    real(kind=JPRD) :: boundary_heat_j, boundary_absolute_j, ice_export_m3
+
+    advection_dt_seconds = real(dt_seconds,JPRD)
     volumetric_ice_latent_energy_j_m3 = real(RI, kind=JPRD) * real(HFUS, kind=JPRD)
 
     advection_runoff_flow_m3s(:) = D2RUNOFF(:,1) + D2GDWRTN(:,1)
@@ -283,7 +384,9 @@ subroutine advance_river_water_advection(dt_seconds)
         &   heat_budget_error_j=advection_heat_budget_error_j(:NSEQALL), &
         &   water_budget_error_m3=advection_water_budget_error_m3(:NSEQALL), &
         &   unapplied_sensible_heat_j=advection_unapplied_sensible_heat_j(:NSEQALL), &
-        &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j)
+        &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j, &
+        &   heat_throughput_j=advection_throughput_j(:NSEQALL), &
+        &   external_heat_j=boundary_heat_j, external_heat_absolute_j=boundary_absolute_j)
     else
         call advect_river_water_sensible_heat( &
         &   water_temperature_k=wattmp(:NSEQALL), &
@@ -297,7 +400,9 @@ subroutine advance_river_water_advection(dt_seconds)
         &   heat_budget_error_j=advection_heat_budget_error_j(:NSEQALL), &
         &   water_budget_error_m3=advection_water_budget_error_m3(:NSEQALL), &
         &   unapplied_sensible_heat_j=advection_unapplied_sensible_heat_j(:NSEQALL), &
-        &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j)
+        &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j, &
+        &   heat_throughput_j=advection_throughput_j(:NSEQALL), &
+        &   external_heat_j=boundary_heat_j, external_heat_absolute_j=boundary_absolute_j)
     endif
 
     if (LICE) then
@@ -310,7 +415,7 @@ subroutine advance_river_water_advection(dt_seconds)
             &   dt_seconds=dt_seconds, &
             &   bifurcation_flow_m3s=D1PTHFLWSUM, &
             &   ice_budget_error_m3=advection_ice_budget_error_m3(:NSEQALL), &
-            &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3)
+            &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3, exported_ice_volume_m3=ice_export_m3)
         else
             call advect_river_surface_ice( &
             &   surface_ice_volume_m3=icevol(:NSEQALL), &
@@ -319,7 +424,7 @@ subroutine advance_river_water_advection(dt_seconds)
             &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
             &   dt_seconds=dt_seconds, &
             &   ice_budget_error_m3=advection_ice_budget_error_m3(:NSEQALL), &
-            &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3)
+            &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3, exported_ice_volume_m3=ice_export_m3)
         endif
         advection_combined_energy_budget_error_j(:NSEQALL) = &
         &   advection_heat_budget_error_j(:NSEQALL) - &
@@ -343,6 +448,27 @@ subroutine advance_river_water_advection(dt_seconds)
         &   maximum_advection_domain_combined_energy_budget_error_j, &
         &   abs(advection_domain_combined_energy_budget_error_j))
     endif
+
+    call add_step_heat(process_ledger,boundary_heat_j,boundary_absolute_j, &
+    &   step_sum(advection_unapplied_sensible_heat_j(:NSEQALL)), &
+    &   step_sum(abs(advection_unapplied_sensible_heat_j(:NSEQALL))))
+    if (LICE) call add_step_heat(process_ledger,volumetric_ice_latent_energy_j_m3*ice_export_m3, &
+    &   volumetric_ice_latent_energy_j_m3*ice_export_m3,0.0_JPRD,0.0_JPRD)
+    call record_heat_exchange(conservation_stats, 1, boundary_heat_j, boundary_absolute_j)
+    if (LICE) then
+        ! Exporting negative latent energy adds energy to the remaining domain.
+        call record_heat_exchange(conservation_stats, 2, &
+        &   volumetric_ice_latent_energy_j_m3 * ice_export_m3, volumetric_ice_latent_energy_j_m3 * ice_export_m3)
+        call record_heat_residual(closure_stats(1), [advection_domain_combined_energy_budget_error_j], &
+        &   [boundary_absolute_j + volumetric_ice_latent_energy_j_m3 * ice_export_m3])
+    else
+        call record_heat_residual(closure_stats(1), [advection_domain_heat_budget_error_j], [boundary_absolute_j])
+    endif
+
+    call record_heat_residual(residual_stats(1), advection_unapplied_sensible_heat_j(:NSEQALL), &
+    &   advection_throughput_j(:NSEQALL), P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1) <= STO_IGNORE)
+    call record_heat_residual(residual_stats(2), advection_unapplied_sensible_heat_j(:NSEQALL), &
+    &   advection_throughput_j(:NSEQALL), P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1) > STO_IGNORE)
 
     maximum_advection_heat_budget_error_j = max( &
     &   maximum_advection_heat_budget_error_j, &
@@ -376,20 +502,28 @@ end subroutine advance_river_water_advection
 
 
 subroutine finalize_river_ice_advection_state()
-    if (.not. LICE) return
-
-    ! CMF_PHYSICS_FLDSTG has already diagnosed the post-update hydraulic
-    ! geometry. Synchronize that state before repartitioning newly received
-    ! mobile ice; pre-existing icevol_excess remains immobile.
-    call get_water()
-    call enforce_river_ice_capacity()
-    call diagnose_river_ice_geometry()
+    if (LICE) then
+        ! CMF_PHYSICS_FLDSTG has already diagnosed the post-update hydraulic
+        ! geometry. Synchronize that state before repartitioning newly received
+        ! mobile ice; pre-existing icevol_excess remains immobile.
+        call get_water()
+        call enforce_river_ice_capacity()
+        call diagnose_river_ice_geometry()
+    endif
+    monitor_seconds = monitor_seconds + advection_dt_seconds
+    call finish_monitor_state(process_start,process_ledger,1,'advection',advection_dt_seconds)
+    call add_process_to_hour()
 end subroutine finalize_river_ice_advection_state
 
 
 subroutine calc_heatlink(dt)
     real(kind=JPRB), intent(in) :: dt ! time step (seconds)
+    integer(kind=JPIM) :: reason, max_cell(1)
+    logical :: wet(NSEQALL)
 
+    call begin_heat_conservation()
+    call capture_monitor_state(process_start)
+    process_ledger = HeatStepLedger()
     write(LOGNAM, '(a)') '[heatlink_river_mod/calc_heatlink]'
     call get_input('LWDN', lwdn)
     call get_input('PSRF', psrf)
@@ -424,7 +558,13 @@ subroutine calc_heatlink(dt)
         &   wattmp, watsto, icevol, icevol_excess, &
         &   rivare + fldare, icearea, icearea_excess, &
         &   hflx_srf, hflx_bdy, hflx_ice_srf, hflx_ice_excess_srf, dt, &
-        &   phase_unapplied_energy, phase_mass_budget_error, phase_energy_budget_error)
+        &   phase_unapplied_energy, phase_mass_budget_error, phase_energy_budget_error, &
+        &   local_dry_energy_j, local_throughput_j, local_added_energy_j)
+        call record_heat_residual(residual_stats(4), &
+        &   real(phase_unapplied_energy(:NSEQALL) - local_dry_energy_j(:NSEQALL), JPRD), &
+        &   real(local_throughput_j(:NSEQALL), JPRD))
+        call record_heat_residual(closure_stats(2), -real(phase_energy_budget_error(:NSEQALL), JPRD), &
+        &   abs(real(local_added_energy_j(:NSEQALL), JPRD)))
         call apply_phase_change_to_water_storage()
         call enforce_river_ice_capacity()
         call diagnose_river_ice_geometry()
@@ -437,8 +577,52 @@ subroutine calc_heatlink(dt)
         &   flddph, fldare, fldvel, &
         &   hflx_bdy)
         call solve_heat_budget(wattmp, &
-        &   watsto, hflx_srf, hflx_bdy, rivare + fldare, dt)
-        wattmp(:) = max(wattmp(:), TMELT)
+        &   watsto, hflx_srf, hflx_bdy, rivare + fldare, dt, local_dry_energy_j, local_added_energy_j)
+        local_throughput_j(:NSEQALL) = abs(local_added_energy_j(:NSEQALL))
+        call apply_liquid_temperature_floor(wattmp, watsto, floor_energy_j)
+        call record_heat_residual(residual_stats(5), real(floor_energy_j(:NSEQALL), JPRD), &
+        &   real(local_throughput_j(:NSEQALL), JPRD))
+    endif
+
+    if (LICE) then
+        call add_step_heat(process_ledger,step_sum(real(local_added_energy_j(:NSEQALL),JPRD)), &
+        &   step_sum(abs(real(local_added_energy_j(:NSEQALL),JPRD))), &
+        &   step_sum(real(phase_unapplied_energy(:NSEQALL),JPRD)), &
+        &   step_sum(abs(real(local_dry_energy_j(:NSEQALL),JPRD))) + &
+        &   step_sum(abs(real(phase_unapplied_energy(:NSEQALL)-local_dry_energy_j(:NSEQALL),JPRD))))
+    else
+        call add_step_heat(process_ledger,step_sum(real(local_added_energy_j(:NSEQALL),JPRD)), &
+        &   step_sum(abs(real(local_added_energy_j(:NSEQALL),JPRD))), &
+        &   step_sum(real(local_dry_energy_j(:NSEQALL),JPRD)) + step_sum(real(floor_energy_j(:NSEQALL),JPRD)), &
+        &   step_sum(abs(real(local_dry_energy_j(:NSEQALL),JPRD))) + step_sum(abs(real(floor_energy_j(:NSEQALL),JPRD))))
+    endif
+    call finish_monitor_state(process_start,process_ledger,2,'local',real(dt,JPRD))
+    call add_process_to_hour()
+    if (hour_monitor_active) then
+        call finish_monitor_state(hour_start,hour_ledger,3,'hour',monitor_seconds-hour_start_seconds)
+        hour_monitor_active = .false.
+    endif
+    call record_heat_residual(residual_stats(3), real(local_dry_energy_j(:NSEQALL), JPRD), &
+    &   real(local_throughput_j(:NSEQALL), JPRD))
+    do reason = 1, size(residual_stats)
+        call write_heat_residual(LOGNAM, residual_reasons(reason), residual_stats(reason))
+    enddo
+    call record_heat_exchange(conservation_stats, 3, sum(real(local_added_energy_j(:NSEQALL), JPRD)), &
+    &   sum(abs(real(local_added_energy_j(:NSEQALL), JPRD))))
+    call write_heat_conservation(LOGNAM, conservation_stats, represented_domain_energy_j(), &
+    &   sum(residual_stats%positive_j) + sum(residual_stats%negative_j))
+    call write_heat_residual(LOGNAM, 'advection_domain', closure_stats(1), 'HEAT_CLOSURE')
+    if (LICE) call write_heat_residual(LOGNAM, 'local_phase', closure_stats(2), 'HEAT_CLOSURE')
+    wet = watsto(:NSEQALL) > real(STO_IGNORE, JPRB)
+    max_cell = maxloc(wattmp(:NSEQALL), mask=wet)
+    if (any(wet)) then
+        write(LOGNAM, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_WET', count(wet), max_cell(1), &
+        &   minval(wattmp(:NSEQALL), mask=wet), maxval(wattmp(:NSEQALL), mask=wet), watsto(max_cell(1))
+    endif
+    max_cell = maxloc(wattmp(:NSEQALL), mask=.not. wet)
+    if (any(.not. wet)) then
+        write(LOGNAM, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_DRY', count(.not. wet), max_cell(1), &
+        &   minval(wattmp(:NSEQALL), mask=.not. wet), maxval(wattmp(:NSEQALL), mask=.not. wet), watsto(max_cell(1))
     endif
 
     ! State diagnostics are synchronized to the end of the current time step.
@@ -830,7 +1014,14 @@ subroutine fin_heatlink_river_mod()
     use thermo_mod, only: &
     &   fin_thermo_mod
 
+    call write_heat_step_extrema(LOGNAM,'advection',step_stats(1))
+    call write_heat_step_extrema(LOGNAM,'local',step_stats(2))
+    call write_heat_step_extrema(LOGNAM,'hour',step_stats(3))
+    process_start = HeatStepState()
+    hour_start = HeatStepState()
     write(LOGNAM, '(a)') '[fin_heatlink_river_mod]'
+    deallocate(local_added_energy_j)
+    deallocate(advection_throughput_j, local_dry_energy_j, local_throughput_j, floor_energy_j)
     if (allocated(wattmp)) deallocate(wattmp)
     if (allocated(advection_initial_liquid_volume_m3)) deallocate(advection_initial_liquid_volume_m3)
     if (allocated(advection_heat_budget_error_j)) deallocate(advection_heat_budget_error_j)
