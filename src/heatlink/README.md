@@ -18,11 +18,11 @@ In detailed mode, record the difference between expected energy and the energy r
 &NHEATLINK
     LICE = .TRUE.
     LHEAT_DIAG = .FALSE.
-    CHEAT_LOG = 'HEAT-LINK_monitor.log'
+    CHEAT_LOG = 'HEAT-LINK.log'
 /
 ```
 
-`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `CHEAT_LOG` defaults to `HEAT-LINK_monitor.log` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
+`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `CHEAT_LOG` defaults to `HEAT-LINK.log` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
 
 | Check or operation | Always active | Additional work with `LHEAT_DIAG = .TRUE.` |
 |---|---|---|
@@ -65,7 +65,9 @@ Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_sc
 
 ## Reading the log
 
-Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK_monitor.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Each physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
+Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Each physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
+
+The log header defines both temperature groups, whether detailed monitoring is enabled or disabled. `wet water temperature` covers cells with end-of-update liquid-water volume greater than `STO_IGNORE`; `dry water temperature` covers cells at or below that threshold. Volumes are in m³. Dry or near-dry cells retain a remembered temperature; it is not a heat source. Ice volume is not used for this classification.
 
 | Heading or item | Meaning |
 |---|---|
@@ -88,15 +90,15 @@ For example, the start of a detailed interval is written as follows (numbers sho
   residual [J]: raw = 2.36000000E+02; adjusted = 1.65465470E+02
 ```
 
-The `begin` calendar is recorded before hydraulic advection. The `local heat budget target` and `end` calendars use the same `JYYYYMMDD` and `JHHMM` as `CMF::DRV_ADVANCE END` in the CaMa log. These are model dates, not wall-clock timestamps. Day/year rollover is retained, and each completed outer update flushes the log.
+The `begin` calendar is recorded before hydraulic advection. The timestamp before the local heat-budget update has no trailing label (for example, `2000/01/01 01:00  step = 1`). It and the `end` calendar use the same `JYYYYMMDD` and `JHHMM` as `CMF::DRV_ADVANCE END` in the CaMa log. These are model dates, not wall-clock timestamps. Day/year rollover is retained, and each completed outer update flushes the log.
 
 `end [s]` accumulates internal time steps from the start of this run; `duration [s]` is the interval length. These distinguish adaptive internal intervals within the formatted calendar markers. Allow for accumulated internal-step roundoff when converting extrema times back to dates. Extrema are temporal extrema of interval **domain** budgets, not spatial extrema of cellwise errors. Restart runs start new diagnostic accumulations.
 
 Existing parsers of the former machine-prefixed records must be updated to read the process headings and labelled fields. Previously generated logs are not rewritten. For a quick inspection:
 
 ```sh
-less /path/to/run/HEAT-LINK_monitor.log
-rg -n '^\[(advection|local heat budget|combined step)\]|extrema over this run' /path/to/run/HEAT-LINK_monitor.log
+less /path/to/run/HEAT-LINK.log
+rg -n '^\[(advection|local heat budget|combined step)\]|extrema over this run' /path/to/run/HEAT-LINK.log
 ```
 
 Detailed monitoring evaluates and logs every internal transport interval, requiring extra memory, arithmetic and log I/O. It is disabled by default. It never corrects physical state using diagnostic values. Runtime comparisons should use identical compiler options, forcing, time intervals, output settings and OpenMP configuration; concurrent annual runs alone do not isolate monitoring cost.

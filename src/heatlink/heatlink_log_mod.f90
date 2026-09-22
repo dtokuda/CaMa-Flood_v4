@@ -33,6 +33,9 @@ subroutine init_heatlink_log(cama_log_unit)
     write(HEAT_LOG_UNIT, '(a)') 'Calendar times follow the CaMa model clock. Interval end/duration values are seconds from run start.'
     if (.not. LHEAT_DIAG) write(HEAT_LOG_UNIT, '(a)') &
     &   'Detailed heat budgets are disabled; temperature checks and physical safeguards remain active.'
+    write(HEAT_LOG_UNIT, '(a)') 'Water-temperature groups use end-of-update liquid-water volume [m3]:'
+    write(HEAT_LOG_UNIT, '(a)') '  wet water temperature: volume > STO_IGNORE.'
+    write(HEAT_LOG_UNIT, '(a)') '  dry water temperature: volume <= STO_IGNORE (dry or near-dry cells; retained temperature).'
 end subroutine init_heatlink_log
 
 subroutine write_heatlink_time(stage, step, date, hhmm)
@@ -47,15 +50,15 @@ subroutine write_heatlink_time(stage, step, date, hhmm)
     case('BEGIN')
         label = 'begin'
     case('LOCAL_END')
-        label = 'local heat budget target'
+        label = ''
     case('END')
         label = 'end'
     case default
         label = stage
     end select
-    write(HEAT_LOG_UNIT, '(i4.4,a,i2.2,a,i2.2,1x,i2.2,a,i2.2,a,i0,2a)') &
+    write(HEAT_LOG_UNIT, '(i4.4,a,i2.2,a,i2.2,1x,i2.2,a,i2.2,a,i0,a)') &
     &   date/10000,'/',mod(date/100,100),'/',mod(date,100),hhmm/100,':',mod(hhmm,100), &
-    &   '  step = ',step,'  ',trim(label)
+    &   '  step = ',step,trim('  '//trim(label))
 end subroutine write_heatlink_time
 
 subroutine fin_heatlink_log()
