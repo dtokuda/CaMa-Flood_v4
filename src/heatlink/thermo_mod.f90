@@ -4,8 +4,8 @@ module thermo_mod
     &   JPIM, JPRB
     use YOS_CMF_MAP, only: &
     &   NSEQALL
-    use YOS_CMF_INPUT, only: &
-    &   LOGNAM
+    use heatlink_log_mod, only: &
+    &   HEAT_LOG_UNIT
     use const_mod, only: &
     &   STO_IGNORE
     use phys_const_mod, only: &
@@ -322,11 +322,11 @@ subroutine solve_water_ice_heat_budget( &
         endif
     enddo
     if (invalid_cell_count > 0) then
-        write(LOGNAM, '(a,i0)') &
+        write(HEAT_LOG_UNIT, '(a,i0)') &
         &   'ERROR: invalid local water-ice state cell count = ', invalid_cell_count
-        write(LOGNAM, '(a,i0)') &
+        write(HEAT_LOG_UNIT, '(a,i0)') &
         &   'ERROR: cells with nonfinite local water-ice inputs = ', nonfinite_cell_count
-        write(LOGNAM, '(a,es12.4)') &
+        write(HEAT_LOG_UNIT, '(a,es12.4)') &
         &   'ERROR: maximum negative state-volume magnitude [m3] = ', &
         &   domain_maximum_negative_volume_m3
         error stop 'Invalid local water-ice state detected; see the model log.'

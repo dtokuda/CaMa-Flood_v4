@@ -99,11 +99,11 @@ end subroutine update_liquid_temperature_no_phase_change
 pure elemental subroutine apply_liquid_temperature_floor(temperature_k, volume_m3, unapplied_energy_j)
     real(kind = JPRB), intent(inout) :: temperature_k ! [K] Liquid temperature, retaining dry memory.
     real(kind = JPRB), intent(in) :: volume_m3 ! [m3] Actual liquid volume.
-    real(kind = JPRB), intent(out) :: unapplied_energy_j ! [J] Negative cooling rejected by the no-ice floor.
-    unapplied_energy_j = 0.0_JPRB
+    real(kind = JPRB), intent(out), optional :: unapplied_energy_j ! [J] Negative cooling rejected by the no-ice floor.
+    if (present(unapplied_energy_j)) unapplied_energy_j = 0.0_JPRB
     if (volume_m3 <= real(STO_IGNORE, JPRB)) return
     if (temperature_k < TMELT) then
-        unapplied_energy_j = liquid_water_energy_j(volume_m3, temperature_k)
+        if (present(unapplied_energy_j)) unapplied_energy_j = liquid_water_energy_j(volume_m3, temperature_k)
         temperature_k = TMELT
     endif
 end subroutine apply_liquid_temperature_floor

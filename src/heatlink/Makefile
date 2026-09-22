@@ -16,6 +16,7 @@ MODS += $(MODDIRS)
 
 OBJS = \
 	heatlink_config_mod.o \
+	heatlink_log_mod.o \
 	heatlink_velocity_mod.o \
 	topo_mod.o \
 	heat_residual_mod.o \
@@ -33,6 +34,7 @@ TESTS = \
 	test_thermo_dry_exchange \
 	test_temperature_dry_state \
 	test_heatlink_config \
+	test_heatlink_log \
 	test_heatlink_velocity \
 	test_water_storage_adapter \
 	test_river_water_advection \
@@ -67,7 +69,9 @@ $(LIBNAME): $(OBJS)
 	@rm -f $@
 	ar -rv $@ $(OBJS)
 
-heatlink_diagnostics_mod.o: heat_step_monitor_mod.o heat_residual_mod.o heatlink_config_mod.o
+heatlink_log_mod.o: heatlink_config_mod.o
+thermo_mod.o topo_mod.o: heatlink_log_mod.o
+heatlink_diagnostics_mod.o: heat_step_monitor_mod.o heat_residual_mod.o heatlink_config_mod.o heatlink_log_mod.o
 
 heatlink_river_mod.o: heatlink_diagnostics_mod.o thermo_mod.o heatlink_config_mod.o heatlink_velocity_mod.o \
 	water_storage_adapter_mod.o \

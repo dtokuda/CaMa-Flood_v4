@@ -2,34 +2,38 @@ module heatlink_config_mod
     implicit none
     private
 
-    integer, parameter :: CONFIG_INTEGER_KIND = selected_int_kind(9)
-    logical, public, save :: LICE = .false.
-    integer(kind=CONFIG_INTEGER_KIND), public, save :: NNEWTON_MAX_ICE = 4
+    integer, parameter :: CONFIG_INTEGER_KIND = selected_int_kind(9) ! [-] Integer kind for configuration values.
+    logical, public, save :: LICE = .false. ! [-] Enable water/ice phase changes.
+    logical, public, save :: LHEAT_DIAG = .false. ! [-] Enable detailed heat-budget monitoring.
+    character(len = 512), public, save :: CHEAT_LOG = 'log_HEAT-LINK.txt' ! [-] Heatlink log path, relative to the run directory.
+    integer(kind = CONFIG_INTEGER_KIND), public, save :: NNEWTON_MAX_ICE = 4 ! [-] Maximum ice-surface Newton iterations.
 
     public :: init_heatlink_config
 
 contains
 
     subroutine init_heatlink_config(nml_path, log_unit, lwevap, llevee)
-        character(len=*), intent(in) :: nml_path
+        character(len = *), intent(in) :: nml_path
         integer, intent(in) :: log_unit
         logical, intent(in) :: lwevap, llevee
 
         integer :: nml_unit, ios
-        namelist /NHEATLINK/ LICE, NNEWTON_MAX_ICE
+        namelist /NHEATLINK/ LICE, NNEWTON_MAX_ICE, LHEAT_DIAG, CHEAT_LOG
 
         LICE = .false.
+        LHEAT_DIAG = .false.
+        CHEAT_LOG = 'log_HEAT-LINK.txt'
         NNEWTON_MAX_ICE = 4
 
-        open(newunit=nml_unit, file=trim(nml_path), status='old', &
-        &   action='read', iostat=ios)
+        open(newunit = nml_unit, file = trim(nml_path), status = 'old', &
+        &   action = 'read', iostat = ios)
         if (ios /= 0) then
             write(log_unit, '(a,1x,a)') &
             &   'ERROR: heatlink could not open namelist:', trim(nml_path)
             error stop 1
         endif
 
-        read(nml_unit, nml=NHEATLINK, iostat=ios)
+        read(nml_unit, nml = NHEATLINK, iostat = ios)
         close(nml_unit)
         if (ios > 0) then
             write(log_unit, '(a,1x,a)') &
@@ -37,6 +41,10 @@ contains
             error stop 1
         endif
 
+        if (len_trim(CHEAT_LOG) == 0) then
+            write(log_unit, '(a)') 'ERROR: CHEAT_LOG must not be empty.'
+            error stop 1
+        endif
         if (NNEWTON_MAX_ICE < 1) then
             write(log_unit, '(a)') &
             &   'ERROR: NNEWTON_MAX_ICE must be at least one.'
@@ -59,6 +67,8 @@ contains
 
         write(log_unit, '(a)') ''
         write(log_unit, '(a)') '=== NAMELIST, NHEATLINK ==='
+        write(log_unit, '(a,l2)') 'LHEAT_DIAG       ', LHEAT_DIAG
+        write(log_unit, '(a,a)') 'CHEAT_LOG        ', trim(CHEAT_LOG)
         write(log_unit, '(a,l2)') 'LICE             ', LICE
         write(log_unit, '(a,i0)') 'NNEWTON_MAX_ICE  ', NNEWTON_MAX_ICE
     end subroutine init_heatlink_config

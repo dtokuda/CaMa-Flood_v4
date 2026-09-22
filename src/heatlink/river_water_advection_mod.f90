@@ -60,6 +60,8 @@ subroutine advect_river_water_sensible_heat( &
     &   ipth, iseq
     integer(kind = JPIM), save :: &
     &   iseq0, iseq1
+    logical :: need_boundary ! [-] Whether external heat diagnostics were requested.
+    logical :: need_residual ! [-] Whether cell or domain heat residuals were requested.
     !$omp threadprivate (iseq0, iseq1)
 
     ! Preconditions: all volumes and dt_seconds are nonnegative, I1NEXT(1:NSEQRIV)
@@ -84,13 +86,17 @@ subroutine advect_river_water_sensible_heat( &
         endif
     endif
 
+    need_boundary = present(external_heat_j) .or. present(external_heat_absolute_j)
+    need_residual = present(unapplied_sensible_heat_j) .or. present(heat_budget_error_j) .or. &
+    &   present(domain_heat_budget_error_j)
     boundary_net_j = 0.0_JPRD
     boundary_absolute_j = 0.0_JPRD
     sensible_heat_j(:) = volumetric_heat_capacity_j_m3_k * &
     &   liquid_volume_before_m3(:) * real( &
     &   max(water_temperature_k(:) - TMELT, 0.0_JPRB), kind = JPRD)
     expected_volume_after_m3(:) = liquid_volume_before_m3(:)
-    domain_expected_heat_j = sum(sensible_heat_j(:))
+    domain_expected_heat_j = 0.0_JPRD
+    if (present(domain_heat_budget_error_j)) domain_expected_heat_j = sum(sensible_heat_j(:))
     incoming_volume_m3(:) = 0.0_JPRD
     incoming_temperature_volume(:) = 0.0_JPRD
     d2heatout(:) = 0.0_JPRD
@@ -228,7 +234,7 @@ subroutine advect_river_water_sensible_heat( &
             sensible_heat_j(iseq) = max( &
             &   sensible_heat_j(iseq) - d2heatout(iseq) * &
             &   real(dt_seconds, kind = JPRD), 0.0_JPRD)
-            domain_expected_heat_j = domain_expected_heat_j - &
+            if (present(domain_heat_budget_error_j)) domain_expected_heat_j = domain_expected_heat_j - &
             &   d2heatout(iseq) * real(dt_seconds, kind = JPRD)
             expected_volume_after_m3(iseq) = expected_volume_after_m3(iseq) - &
             &   real(normal_flow_m3s(iseq), kind = JPRD) * &
@@ -240,7 +246,7 @@ subroutine advect_river_water_sensible_heat( &
             &   transferred_volume_m3 * real(water_temperature_k(iseq) - TMELT, JPRD)
             sensible_heat_j(iseq) = sensible_heat_j(iseq) + &
             &   abs(d2heatout(iseq)) * real(dt_seconds, kind = JPRD)
-            domain_expected_heat_j = domain_expected_heat_j + &
+            if (present(domain_heat_budget_error_j)) domain_expected_heat_j = domain_expected_heat_j + &
             &   abs(d2heatout(iseq)) * real(dt_seconds, kind = JPRD)
             expected_volume_after_m3(iseq) = expected_volume_after_m3(iseq) + &
             &   abs(real(normal_flow_m3s(iseq), kind = JPRD)) * &
@@ -248,12 +254,14 @@ subroutine advect_river_water_sensible_heat( &
         endif
     enddo
 
-    ! Boundary accounting uses the final limited mouth flux, with its sign.
-    do iseq = NSEQRIV + 1, NSEQALL
-        boundary_transfer_j = -d2heatout(iseq) * real(dt_seconds, JPRD)
-        boundary_net_j = boundary_net_j + boundary_transfer_j
-        boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
-    enddo
+    if (need_boundary) then
+        ! Boundary accounting uses the final limited mouth flux, with its sign.
+        do iseq = NSEQRIV + 1, NSEQALL
+            boundary_transfer_j = -d2heatout(iseq) * real(dt_seconds, JPRD)
+            boundary_net_j = boundary_net_j + boundary_transfer_j
+            boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
+        enddo
+    endif
 
     if (present(bifurcation_flow_m3s)) then
         do ipth = 1, NPTHOUT
@@ -295,7 +303,7 @@ subroutine advect_river_water_sensible_heat( &
         &   real(dt_seconds, kind = JPRD)
         expected_volume_after_m3(:) = expected_volume_after_m3(:) + &
         &   real(runoff_flow_m3s(:), kind = JPRD) * real(dt_seconds, kind = JPRD)
-        domain_expected_heat_j = domain_expected_heat_j + &
+        if (present(domain_heat_budget_error_j)) domain_expected_heat_j = domain_expected_heat_j + &
         &   volumetric_heat_capacity_j_m3_k * sum( &
         &   real(runoff_flow_m3s(:), kind = JPRD) * &
         &   real(inflow_temperature_k(:) - TMELT, kind = JPRD)) * &
@@ -311,24 +319,26 @@ subroutine advect_river_water_sensible_heat( &
         &   real(dt_seconds, kind = JPRD)
         expected_volume_after_m3(:) = expected_volume_after_m3(:) + &
         &   real(upstream_inflow_m3s(:), kind = JPRD) * real(dt_seconds, kind = JPRD)
-        domain_expected_heat_j = domain_expected_heat_j + &
+        if (present(domain_heat_budget_error_j)) domain_expected_heat_j = domain_expected_heat_j + &
         &   volumetric_heat_capacity_j_m3_k * sum( &
         &   real(upstream_inflow_m3s(:), kind = JPRD) * &
         &   real(inflow_temperature_k(:) - TMELT, kind = JPRD)) * &
         &   real(dt_seconds, kind = JPRD)
     endif
 
-    if (present(runoff_flow_m3s)) then
-        boundary_transfer_j = volumetric_heat_capacity_j_m3_k * sum( &
-        &   real(runoff_flow_m3s(:), JPRD) * real(inflow_temperature_k(:) - TMELT, JPRD)) * real(dt_seconds, JPRD)
-        boundary_net_j = boundary_net_j + boundary_transfer_j
-        boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
-    endif
-    if (present(upstream_inflow_m3s)) then
-        boundary_transfer_j = volumetric_heat_capacity_j_m3_k * sum( &
-        &   real(upstream_inflow_m3s(:), JPRD) * real(inflow_temperature_k(:) - TMELT, JPRD)) * real(dt_seconds, JPRD)
-        boundary_net_j = boundary_net_j + boundary_transfer_j
-        boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
+    if (need_boundary) then
+        if (present(runoff_flow_m3s)) then
+            boundary_transfer_j = volumetric_heat_capacity_j_m3_k * sum( &
+            &   real(runoff_flow_m3s(:), JPRD) * real(inflow_temperature_k(:) - TMELT, JPRD)) * real(dt_seconds, JPRD)
+            boundary_net_j = boundary_net_j + boundary_transfer_j
+            boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
+        endif
+        if (present(upstream_inflow_m3s)) then
+            boundary_transfer_j = volumetric_heat_capacity_j_m3_k * sum( &
+            &   real(upstream_inflow_m3s(:), JPRD) * real(inflow_temperature_k(:) - TMELT, JPRD)) * real(dt_seconds, JPRD)
+            boundary_net_j = boundary_net_j + boundary_transfer_j
+            boundary_absolute_j = boundary_absolute_j + abs(boundary_transfer_j)
+        endif
     endif
     if (present(external_heat_j)) external_heat_j = boundary_net_j
     if (present(external_heat_absolute_j)) external_heat_absolute_j = boundary_absolute_j
@@ -352,14 +362,16 @@ subroutine advect_river_water_sensible_heat( &
             &   (remaining_volume_m3 * real(water_temperature_k(iseq) - TMELT, JPRD) + &
             &   incoming_temperature_volume(iseq)) / mixing_volume_m3, kind = JPRB)
         endif
-        ! Account once for both dry holding and reconstruction/rounding changes.
-        ! Start the next step from represented heat, without storing this residual.
-        local_unapplied_heat_j(iseq) = sensible_heat_j(iseq) - &
-        &   volumetric_heat_capacity_j_m3_k * liquid_volume_after_m3(iseq) * &
-        &   real(water_temperature_k(iseq) - TMELT, kind = JPRD)
-        ! An unchanged state has no new residual, regardless of expression rounding.
-        if (liquid_volume_after_m3(iseq) == liquid_volume_before_m3(iseq) .and. &
-        &   incoming_volume_m3(iseq) == 0.0_JPRD .and. sOut(iseq) == 0.0_JPRD) local_unapplied_heat_j(iseq) = 0.0_JPRD
+        if (need_residual) then
+            ! Account once for both dry holding and reconstruction/rounding changes.
+            ! Start the next step from represented heat, without storing this residual.
+            local_unapplied_heat_j(iseq) = sensible_heat_j(iseq) - &
+            &   volumetric_heat_capacity_j_m3_k * liquid_volume_after_m3(iseq) * &
+            &   real(water_temperature_k(iseq) - TMELT, kind = JPRD)
+            ! An unchanged state has no new residual, regardless of expression rounding.
+            if (liquid_volume_after_m3(iseq) == liquid_volume_before_m3(iseq) .and. &
+            &   incoming_volume_m3(iseq) == 0.0_JPRD .and. sOut(iseq) == 0.0_JPRD) local_unapplied_heat_j(iseq) = 0.0_JPRD
+        endif
     enddo
     !$omp end parallel do
 

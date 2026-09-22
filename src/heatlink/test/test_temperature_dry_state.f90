@@ -23,6 +23,7 @@ program test_temperature_dry_state
     call phase_cycles()
     call local_heating_and_floor()
     call residual_ledger()
+    call floor_without_diagnostics()
     write(*, '(a)') '[ALL TESTS PASSED] test_temperature_dry_state'
 contains
 subroutine check(ok, label)
@@ -188,6 +189,16 @@ subroutine local_heating_and_floor()
     call apply_liquid_temperature_floor(t,0.0_JPRB,u)
     call check(t == 280.0_JPRB.and.u == 0.0_JPRB, 'dry memory has no no-ice floor heat')
 end subroutine
+
+subroutine floor_without_diagnostics()
+    real(kind = JPRB) :: t(3), reference(3), v(3), u(3) ! [K,m3,J] Temperatures, volumes and rejected cooling.
+    t = [260.0_JPRB, 290.0_JPRB, 260.0_JPRB]
+    v = [1.0_JPRB, 1.0_JPRB, 0.0_JPRB]
+    reference = t
+    call apply_liquid_temperature_floor(reference, v, u)
+    call apply_liquid_temperature_floor(t, v)
+    call check(all(t == reference), 'omitting floor diagnostics preserves physical temperatures')
+end subroutine floor_without_diagnostics
 
 subroutine residual_ledger()
     type(HeatResidualStats) :: stats

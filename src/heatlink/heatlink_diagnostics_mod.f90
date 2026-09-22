@@ -1,19 +1,20 @@
 module heatlink_diagnostics_mod
 #ifdef heatlink
     use PARKIND1, only: JPIM, JPRB, JPRD
-    use YOS_CMF_INPUT, only: LOGNAM
+    use heatlink_log_mod, only: HEAT_LOG_UNIT
     use YOS_CMF_MAP, only: NSEQALL
     use YOS_CMF_PROG, only: P2RIVSTO, P2FLDSTO
-    use heatlink_config_mod, only: LICE
+    use heatlink_config_mod, only: LICE, LHEAT_DIAG
     use const_mod, only: STO_IGNORE
     use phys_const_mod, only: CW, RW, RI, HFUS, TMELT
     use heat_residual_mod, only: HeatResidualStats, record_heat_residual, write_heat_residual, &
     &   HeatConservationStats, record_heat_exchange, write_heat_conservation
     use heat_step_monitor_mod, only: HeatStepState, HeatStepLedger, HeatStepStats, &
     &   capture_heat_step, measure_heat_step, add_step_heat, step_sum, monitor_heat_step, write_heat_step_extrema
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     implicit none
     private
-    public :: init_heatlink_diagnostics, fin_heatlink_diagnostics
+    public :: init_heatlink_diagnostics, fin_heatlink_diagnostics, check_heatlink_temperature
     public :: begin_advection_diagnostics, record_advection_diagnostics, finish_advection_diagnostics
     public :: begin_local_diagnostics, finish_local_diagnostics
 
@@ -35,6 +36,7 @@ module heatlink_diagnostics_mod
 contains
 
 subroutine init_heatlink_diagnostics()
+    if (.not. LHEAT_DIAG) return
     residual_stats = HeatResidualStats()
     closure_stats = HeatResidualStats()
     conservation_stats = HeatConservationStats()
@@ -44,13 +46,13 @@ subroutine init_heatlink_diagnostics()
     hour_monitor_active = .false.
     monitor_seconds = 0.0_JPRD
     hour_start_seconds = 0.0_JPRD
-    write(LOGNAM,'(a)') 'HEAT_STEP columns: stage step elapsed_seconds dt_seconds delta[J] net[J] exchange_abs[J] unapplied[J] unapplied_abs[J] raw[J] adjusted[J] storage_scale[J] raw_exchange_ratio adjusted_exchange_ratio unapplied_exchange_ratio adjusted_storage_ratio naive_delta[J] naive_adjusted[J] exchange_ratio_valid storage_ratio_valid'
-    write(LOGNAM,'(a)') 'HEAT_STEP uses cellwise state increments and interval-only compensated sums. Invalid ratios are placeholders; do not interpret zero as a valid ratio.'
-    write(LOGNAM,'(a)') 'HEAT_STEP_EXTREME columns: stage metric min_or_max step followed by the same 16 real fields as HEAT_STEP. Extrema cover this run; errors are not accumulated.'
-    write(LOGNAM, '(a)') 'HEAT_RESIDUAL columns: reason signed[J] positive[J] negative[J] absolute[J] max[J] events cells max_cell throughput[J]'
-    write(LOGNAM, '(a)') 'HEAT_CONSERVATION columns: initial[J] current[J] water_net[J] ice_net[J] local_net[J] water_abs[J] ice_abs[J] local_abs[J] unapplied[J] raw[J] adjusted[J] raw_fraction adjusted_fraction water_steps ice_steps local_steps'
-    write(LOGNAM, '(a)') 'HEAT_CONSERVATION raw = current - initial - net_input; adjusted = raw + signed_unapplied. Ice storage is melting-point latent energy; ice skin is massless.'
-    write(LOGNAM, '(a)') 'HEAT_RESIDUAL totals start at this run; diagnostics are never reinjected. Internal transport is counted at both ends.'
+    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP columns: stage step elapsed_seconds dt_seconds delta[J] net[J] exchange_abs[J] unapplied[J] unapplied_abs[J] raw[J] adjusted[J] storage_scale[J] raw_exchange_ratio adjusted_exchange_ratio unapplied_exchange_ratio adjusted_storage_ratio naive_delta[J] naive_adjusted[J] exchange_ratio_valid storage_ratio_valid'
+    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP uses cellwise state increments and interval-only compensated sums. Invalid ratios are placeholders; do not interpret zero as a valid ratio.'
+    write(HEAT_LOG_UNIT,'(a)') 'HEAT_STEP_EXTREME columns: stage metric min_or_max step followed by the same 16 real fields as HEAT_STEP. Extrema cover this run; errors are not accumulated.'
+    write(HEAT_LOG_UNIT, '(a)') 'HEAT_RESIDUAL columns: reason signed[J] positive[J] negative[J] absolute[J] max[J] events cells max_cell throughput[J]'
+    write(HEAT_LOG_UNIT, '(a)') 'HEAT_CONSERVATION columns: initial[J] current[J] water_net[J] ice_net[J] local_net[J] water_abs[J] ice_abs[J] local_abs[J] unapplied[J] raw[J] adjusted[J] raw_fraction adjusted_fraction water_steps ice_steps local_steps'
+    write(HEAT_LOG_UNIT, '(a)') 'HEAT_CONSERVATION raw = current - initial - net_input; adjusted = raw + signed_unapplied. Ice storage is melting-point latent energy; ice skin is massless.'
+    write(HEAT_LOG_UNIT, '(a)') 'HEAT_RESIDUAL totals start at this run; diagnostics are never reinjected. Internal transport is counted at both ends.'
     advection_dt_seconds = 0.0_JPRD
 end subroutine init_heatlink_diagnostics
 
@@ -102,7 +104,7 @@ subroutine finish_monitor_state(state,ledger,index,stage,dt_seconds, wattmp, ice
         &   real(wattmp(:NSEQALL)-TMELT,JPRD),real(CW,JPRD)*real(RW,JPRD),real(RI,JPRD)*real(HFUS,JPRD), &
         &   delta_j,storage_j,naive_delta_j)
     endif
-    call monitor_heat_step(step_stats(index),LOGNAM,stage,monitor_seconds,dt_seconds, &
+    call monitor_heat_step(step_stats(index),HEAT_LOG_UNIT,stage,monitor_seconds,dt_seconds, &
     &   delta_j,storage_j,naive_delta_j,ledger)
 end subroutine
 
@@ -125,6 +127,7 @@ subroutine begin_advection_diagnostics(wattmp, icevol, icevol_excess)
     real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
     real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
     real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    if (.not. LHEAT_DIAG) return
     call begin_heat_conservation(wattmp, icevol, icevol_excess)
     call capture_monitor_state(process_start, wattmp, icevol, icevol_excess)
     process_ledger = HeatStepLedger()
@@ -149,6 +152,7 @@ subroutine record_advection_diagnostics(dt_seconds, boundary_heat_j, boundary_ab
     real(kind = JPRD), intent(in) :: advection_domain_combined_energy_budget_error_j ! [J] Domain water-plus-ice closure error.
     real(kind = JPRD) :: volumetric_ice_latent_energy_j_m3 ! [J m-3] Magnitude of melting-point ice latent energy.
 
+    if (.not. LHEAT_DIAG) return
     advection_dt_seconds = real(dt_seconds,JPRD)
     volumetric_ice_latent_energy_j_m3 = real(RI,JPRD) * real(HFUS,JPRD)
     call add_step_heat(process_ledger,boundary_heat_j,boundary_absolute_j, &
@@ -178,6 +182,7 @@ subroutine finish_advection_diagnostics(wattmp, icevol, icevol_excess)
     real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
     real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
     real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    if (.not. LHEAT_DIAG) return
     monitor_seconds = monitor_seconds + advection_dt_seconds
     call finish_monitor_state(process_start,process_ledger,1,'advection',advection_dt_seconds, wattmp, icevol, icevol_excess)
     call add_process_to_hour()
@@ -187,19 +192,19 @@ subroutine begin_local_diagnostics(wattmp, icevol, icevol_excess)
     real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
     real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
     real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    if (.not. LHEAT_DIAG) return
     call begin_heat_conservation(wattmp, icevol, icevol_excess)
     call capture_monitor_state(process_start, wattmp, icevol, icevol_excess)
     process_ledger = HeatStepLedger()
 end subroutine begin_local_diagnostics
 
-subroutine finish_local_diagnostics(dt, wattmp, watsto, icevol, icevol_excess, &
+subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
 &   local_added_energy_j, local_dry_energy_j, local_throughput_j, floor_energy_j, &
 &   phase_unapplied_energy, phase_energy_budget_error)
     real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
     real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
     real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     real(kind = JPRB), intent(in) :: dt ! [s] Duration of the local heat update.
-    real(kind = JPRB), intent(in) :: watsto(:) ! [m3] Liquid storage after the local heat update.
     real(kind = JPRB), intent(in) :: local_added_energy_j(:) ! [J] Expected net local heat input per cell.
     real(kind = JPRB), intent(in) :: local_dry_energy_j(:) ! [J] Signed local heat skipped by dry handling.
     real(kind = JPRB), intent(in) :: local_throughput_j(:) ! [J] Absolute local heat-input scale per cell.
@@ -207,9 +212,8 @@ subroutine finish_local_diagnostics(dt, wattmp, watsto, icevol, icevol_excess, &
     real(kind = JPRB), allocatable, intent(in) :: phase_unapplied_energy(:) ! [J] Signed heat unapplied by phase handling; ice only.
     real(kind = JPRB), allocatable, intent(in) :: phase_energy_budget_error(:) ! [J] Local phase-change closure error; ice only.
     integer(kind = JPIM) :: reason ! [-] Index of an unapplied-heat cause.
-    integer(kind = JPIM) :: max_cell(1) ! [-] One-based cell index of the maximum temperature.
-    logical :: wet(NSEQALL) ! [-] Cells with liquid volume above STO_IGNORE.
 
+    if (.not. LHEAT_DIAG) return
     if (LICE) then
         call record_heat_residual(residual_stats(4), &
         &   real(phase_unapplied_energy(:NSEQALL) - local_dry_energy_j(:NSEQALL), JPRD), &
@@ -242,32 +246,48 @@ subroutine finish_local_diagnostics(dt, wattmp, watsto, icevol, icevol_excess, &
     call record_heat_residual(residual_stats(3), real(local_dry_energy_j(:NSEQALL), JPRD), &
     &   real(local_throughput_j(:NSEQALL), JPRD))
     do reason = 1, size(residual_stats)
-        call write_heat_residual(LOGNAM, residual_reasons(reason), residual_stats(reason))
+        call write_heat_residual(HEAT_LOG_UNIT, residual_reasons(reason), residual_stats(reason))
     enddo
     call record_heat_exchange(conservation_stats, 3, sum(real(local_added_energy_j(:NSEQALL), JPRD)), &
     &   sum(abs(real(local_added_energy_j(:NSEQALL), JPRD))))
-    call write_heat_conservation(LOGNAM, conservation_stats, represented_domain_energy_j(wattmp, icevol, icevol_excess), &
+    call write_heat_conservation(HEAT_LOG_UNIT, conservation_stats, represented_domain_energy_j(wattmp, icevol, icevol_excess), &
     &   sum(residual_stats%positive_j) + sum(residual_stats%negative_j))
-    call write_heat_residual(LOGNAM, 'advection_domain', closure_stats(1), 'HEAT_CLOSURE')
-    if (LICE) call write_heat_residual(LOGNAM, 'local_phase', closure_stats(2), 'HEAT_CLOSURE')
+    call write_heat_residual(HEAT_LOG_UNIT, 'advection_domain', closure_stats(1), 'HEAT_CLOSURE')
+    if (LICE) call write_heat_residual(HEAT_LOG_UNIT, 'local_phase', closure_stats(2), 'HEAT_CLOSURE')
+
+end subroutine finish_local_diagnostics
+
+subroutine check_heatlink_temperature(wattmp, watsto)
+    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] End-of-update liquid-water temperature.
+    real(kind = JPRB), intent(in) :: watsto(:) ! [m3] End-of-update liquid-water volume.
+    integer(kind = JPIM) :: max_cell(1) ! [-] One-based cell index of the maximum temperature.
+    logical :: wet(NSEQALL) ! [-] Cells with liquid volume above STO_IGNORE.
+
+    if (.not. all(ieee_is_finite(wattmp(:NSEQALL)))) then
+        write(HEAT_LOG_UNIT, '(a)') 'ERROR: non-finite river water temperature.'
+        flush(HEAT_LOG_UNIT)
+        error stop 'Non-finite river water temperature; see CHEAT_LOG.'
+    endif
     wet = watsto(:NSEQALL) > real(STO_IGNORE, JPRB)
     max_cell = maxloc(wattmp(:NSEQALL), mask = wet)
     if (any(wet)) then
-        write(LOGNAM, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_WET', count(wet), max_cell(1), &
+        write(HEAT_LOG_UNIT, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_WET', count(wet), max_cell(1), &
         &   minval(wattmp(:NSEQALL), mask = wet), maxval(wattmp(:NSEQALL), mask = wet), watsto(max_cell(1))
     endif
     max_cell = maxloc(wattmp(:NSEQALL), mask = .not. wet)
     if (any(.not. wet)) then
-        write(LOGNAM, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_DRY', count(.not. wet), max_cell(1), &
+        write(HEAT_LOG_UNIT, '(a,2(1x,i0),3(1x,es24.16))') 'THERMAL_DRY', count(.not. wet), max_cell(1), &
         &   minval(wattmp(:NSEQALL), mask = .not. wet), maxval(wattmp(:NSEQALL), mask = .not. wet), watsto(max_cell(1))
     endif
-
-end subroutine finish_local_diagnostics
+    if (maxval(wattmp(:NSEQALL)) > 350.0_JPRB) &
+    &   write(HEAT_LOG_UNIT, '(a)') 'WARNING: river water temperature exceeds 350 K; inspect THERMAL_WET/THERMAL_DRY.'
+end subroutine check_heatlink_temperature
 
 subroutine fin_heatlink_diagnostics()
-    call write_heat_step_extrema(LOGNAM,'advection',step_stats(1))
-    call write_heat_step_extrema(LOGNAM,'local',step_stats(2))
-    call write_heat_step_extrema(LOGNAM,'hour',step_stats(3))
+    if (.not. LHEAT_DIAG) return
+    call write_heat_step_extrema(HEAT_LOG_UNIT,'advection',step_stats(1))
+    call write_heat_step_extrema(HEAT_LOG_UNIT,'local',step_stats(2))
+    call write_heat_step_extrema(HEAT_LOG_UNIT,'hour',step_stats(3))
     process_start = HeatStepState()
     hour_start = HeatStepState()
 end subroutine fin_heatlink_diagnostics
