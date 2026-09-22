@@ -1,59 +1,76 @@
-# 水温・氷の熱収支の安定化と診断
+# Water-temperature and ice heat-budget stability and diagnostics
 
-## 安定化の対象
+## Stabilization
 
-ほぼ全量の水が流出した格子では、熱量と水量の丸め残差を割ると極端な水温が生じ得る。水温の再構成は、残る水と流入水の非負の重みで行う。流入がない場合は元の温度を保持する。水の貯留量や流量そのものは、この温度再構成では変更しない。
+When nearly all water leaves a cell, dividing residual heat by residual water volume can produce extreme temperatures through roundoff. Reconstruct the temperature using nonnegative weights for retained and incoming water. Retain the original temperature when there is no inflow. This reconstruction does not modify hydraulic storage or discharge.
 
-液体水量が既存の `STO_IGNORE` 以下の場合は前ステップの温度を保持する。この温度は乾燥中の記憶値であり、氷を加熱する熱源として使用しない。再湿潤時には実際の流入水や融解水と、その顕熱に基づいて温度を求める。
+Retain the previous temperature when liquid volume is at or below the existing `STO_IGNORE` threshold. During dry conditions this is a remembered temperature, not a heat source for ice. After rewetting, determine the temperature from actual inflowing or melted water and its sensible heat.
 
-氷の生成・融解の途中では液体の顕熱を直接受け渡し、極小水量で温度への変換を繰り返さない。乾燥中も大気からの加熱による氷の融解は継続する。氷の輸送率についても `STO_IGNORE` 以下の液体水量を除算に使わない。
+Pass liquid sensible heat directly between freezing and melting operations, avoiding repeated conversion to temperature at very small volumes. Atmospheric heating can still melt ice in a dry cell. Ice transport also avoids dividing by liquid volumes at or below `STO_IGNORE`.
 
-水の顕熱・氷の流出制限係数は初期値を1とし、要求流出量が利用可能量を超える場合だけ割り算する。これにより、極小の正の輸送量に対する不要な商のオーバーフローを避ける。正の極小流束を一律にゼロへ丸める処理は行わない。
+Initialize water sensible-heat and ice export limiters to one. Divide only when requested export exceeds availability. This avoids unnecessary quotient overflow for tiny positive transport without rounding all such fluxes to zero.
 
-保持した温度が表現する熱量と、輸送・局所熱入力から期待される熱量との差は、符号付きの未適用熱として記録する。この熱を次のステップに持ち越したり、他格子へ再配分・再投入したりはしない。状態が変化しない乾燥格子では、以前の未適用熱を繰り返し計上しない。
+Record the difference between expected energy and the energy represented by the retained temperature as signed unapplied heat. Do not carry it forward, redistribute it, or reinject it into model state. An unchanged dry cell does not repeatedly accumulate the same previously unapplied heat.
 
-## 熱収支の定義
+## Module responsibilities
 
-モデル内の蓄熱状態は、水の融点基準の顕熱と、融点にある氷の潜熱である。氷表面温度は質量を持たない診断値で、氷内部の顕熱蓄積は含まない。
+- `heat_residual_mod` defines both types and operations for cause-specific unapplied-heat totals and the domain heat ledger accumulated since this run started. These are supporting diagnostics.
+- `heat_step_monitor_mod` defines both types and operations for interval snapshots, compensated sums, state increments and independent extrema. Interval residuals avoid relying on subtraction of large annual totals.
+- `heatlink_diagnostics_mod` connects those two diagnostic modules to canonical CaMa storage and read-only river temperature/ice arrays. It owns diagnostic state, assembles exchanges and writes the logs.
+- `heatlink_river_mod` retains physical state, forcing, solver order and output coupling, with calls to begin, record and finish the diagnostic intervals.
 
-- `delta[J]`：その区間のモデル内熱量増分 ΔE。
-- `net[J]`：同区間の正味外部入熱 Q。領域内の輸送は外部入熱に含めない。
-- `exchange_abs[J]`：同区間の外部入出熱の絶対量 S。局所熱入力は格子別の正味入熱の絶対値を合計し、個々の放射・乱流フラックスの絶対値総和とは区別する。
-- `unapplied[J]`：同区間の符号付き未適用熱 U。正は未適用加熱、負は未適用冷却。
-- `unapplied_abs[J]`：同区間で未適用熱の正負を相殺せず集計した絶対量。
-- `raw[J] = ΔE − Q`：未適用熱を加味する前の残差。
-- `adjusted[J] = ΔE − Q + U`：未適用熱を診断上加味した残差。
-- `storage_scale[J]`：顕熱と氷潜熱が相殺しない蓄熱量尺度。
+The first two modules are separated by diagnostic responsibility and time scale, not by separating type definitions from their use. Their numerical routines can be tested independently of the river driver.
 
-ΔEは格子ごとの水量・温度・氷量の増分から直接求め、領域総熱量どうしの差を主指標にしない。和は `JPRD` のNeumaier補償和で評価する。比較用の `naive_delta[J]` と `naive_adjusted[J]` は、従来の大きい総量どうしの差を使う。
+## Heat-budget definitions
 
-`raw/S`、`adjusted/S`、未適用熱の絶対量/S、`adjusted/storage_scale` を記録する。分母ゼロや表現範囲外の比は無効フラグを付け、比の極値から除外する。該当する数値欄のゼロを有効な比と解釈してはいけない。残差の絶対量と比率の極値は独立に選ぶため、極値の時刻も異なり得る。
+Represented energy consists of water sensible heat relative to the melting point and the latent energy of ice at the melting point. Ice-surface temperature is a massless diagnostic; it does not represent sensible heat stored inside ice.
 
-## ログの読み方
+- `delta[J]`: represented energy increment ΔE during the interval.
+- `net[J]`: net external heat input Q during the same interval. Internal transport is excluded.
+- `exchange_abs[J]`: absolute external heat exchange S during the interval. For local heating, sum the absolute **net input per cell**, not the absolute values of every radiation and turbulent flux component.
+- `unapplied[J]`: signed unapplied heat U. Positive means unapplied heating; negative means unapplied cooling.
+- `unapplied_abs[J]`: absolute unapplied heat without cancellation between its positive and negative contributions.
+- `raw[J] = ΔE − Q`: residual before accounting for unapplied heat.
+- `adjusted[J] = ΔE − Q + U`: residual after accounting for unapplied heat in the diagnostic ledger.
+- `storage_scale[J]`: an energy-storage scale in which sensible heat and ice latent energy do not cancel.
 
-`heatlink_river_mod` の初期化時に列名を出力する。
+Compute ΔE directly from cellwise volume, temperature and ice increments. Subtracting two domain energy totals is not the primary diagnostic. Use `JPRD` Neumaier compensated sums. The comparison fields `naive_delta[J]` and `naive_adjusted[J]` retain the large-total subtraction.
 
-| レコード | 内容 |
+Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_scale`. Flag zero-denominator and unrepresentable ratios as invalid and exclude them from ratio extrema. A zero placeholder in such a field is not a valid zero ratio. Energy and ratio extrema are selected independently and may occur at different times.
+
+## Reading the log
+
+During initialization, `heatlink_diagnostics_mod` writes column definitions to the model log selected by `LOGNAM` (normally `log_CaMa.txt` in the run directory).
+
+| Record | Meaning |
 |---|---|
-| `HEAT_STEP advection` | 各移流内部ステップの領域収支 |
-| `HEAT_STEP local` | 各局所熱更新の領域収支 |
-| `HEAT_STEP hour` | 移流と局所更新を合わせた外側更新区間の収支（年計算の検証では1時間） |
-| `HEAT_STEP_COUNTS` | 過程別の区間数、無効な比の件数 |
-| `HEAT_STEP_EXTREME` | 終了時に出力する各指標の最小・最大、ステップ番号、同区間の診断値 |
-| `HEAT_RESIDUAL` | 原因別の未適用熱。乾燥移流、移流再構成、局所乾燥、氷処理、氷無効時の融点下限を区別 |
-| `HEAT_CONSERVATION` | 実行開始からの領域収支。年累積の補助情報 |
-| `HEAT_CLOSURE` | 過程別収支の補助情報。領域残差と重複するため加算しない |
-| `THERMAL_WET` / `THERMAL_DRY` | 有水・乾燥格子別の温度範囲と最大温度の格子番号 |
+| `HEAT_STEP advection` | Domain heat budget for each internal advection step |
+| `HEAT_STEP local` | Domain heat budget for each local heat update |
+| `HEAT_STEP hour` | Combined advection and local budget over an outer update interval; one hour in the annual validation |
+| `HEAT_STEP_COUNTS` | Number of intervals and invalid ratios for each process |
+| `HEAT_STEP_EXTREME` | Minimum/maximum of each metric, interval index and the complete corresponding diagnostic record, written at shutdown |
+| `HEAT_RESIDUAL` | Cause-specific unapplied heat: dry advection, advection reconstruction, dry local update, ice handling and the no-ice melting-point floor |
+| `HEAT_CONSERVATION` | Domain budget since this run started; cumulative supporting information |
+| `HEAT_CLOSURE` | Process closure information; overlaps the domain residual and must not be added to it |
+| `THERMAL_WET` / `THERMAL_DRY` | Wet/dry temperature ranges and the cell index of the maximum temperature |
 
-`elapsed_seconds` は実行開始からの内部dtの積算、`dt_seconds` は対象区間の長さ。絶対暦日時ではない。内部dtの丸めの積算とモデルの暦時刻の対応には注意する。終了時の極値は、その実行中の領域収支の時間極値であり、格子別誤差の空間極値ではない。再起動時の診断累積はその実行から始まる。
+`elapsed_seconds` accumulates internal time steps from the start of this run. `dt_seconds` is the monitored interval length. These are not calendar timestamps: allow for accumulated internal-step roundoff when relating them to the model calendar. Extrema are temporal extrema of interval **domain** budgets, not spatial extrema of cellwise errors. Restart runs start new diagnostic accumulations.
 
-この診断では全移流内部ステップを出力するため、追加メモリとログI/Oが発生する。モデルの物理状態を診断値で補正しない。
+For example, inspect interval records and final extrema with:
 
-`LICE=.FALSE.` の融点下限によって冷却が未適用になる制約は `raw` と Uに残る。`adjusted` が小さくても、その冷却を水や氷へ適用したことにはならない。`LICE=.TRUE.` でも乾燥保持等のUは別途評価する。領域内の格子間相殺や、乾燥判定で最初から計算しない熱フラックスの影響を、この診断だけで保証しない。
+```sh
+rg '^HEAT_STEP (advection|local|hour) ' /path/to/run/log_CaMa.txt
+rg '^HEAT_STEP_(COUNTS|EXTREME) ' /path/to/run/log_CaMa.txt
+rg '^(HEAT_RESIDUAL|HEAT_CONSERVATION|HEAT_CLOSURE|THERMAL_)' /path/to/run/log_CaMa.txt
+```
 
-## 回帰テスト
+Monitoring currently evaluates and logs every internal transport interval, requiring extra memory, arithmetic and log I/O. It never corrects physical state using diagnostic values. Runtime comparisons should use identical compiler options, forcing, time intervals, output settings and OpenMP configuration; concurrent annual runs alone do not isolate monitoring cost.
 
-コンパイラ・NetCDF等の環境設定は既存の `adm/Mkinclude` またはmakeのコマンドラインで指定する。個人環境のパスや実データは必要ない。以下はheatlinkを有効にした構成の例。make変数の指定は各呼び出しで共通にする。
+With `LICE = .FALSE.`, unapplied cooling caused by the melting-point floor remains in `raw` and U. A small `adjusted` residual does not mean that cooling was physically applied. With `LICE = .TRUE.`, evaluate dry-state and other unapplied heat separately as well. These domain diagnostics do not rule out cancellation between cells or account for heat fluxes never computed because of dry-state checks.
+
+## Regression tests
+
+Use the existing `adm/Mkinclude` or make command-line settings for the compiler and NetCDF environment. Tests do not require personal configuration paths or real forcing data. Example build commands with heatlink enabled follow; use the same make-variable overrides for each invocation.
 
 ```sh
 make -r -j1 -C src all EXT_LIBS='common mod phys io heatlink' DHEATLINK=-Dheatlink
@@ -61,7 +78,7 @@ make -r -j1 -C src/heatlink test DHEATLINK=-Dheatlink
 make -r -j1 -C src/phys test DHEATLINK=-Dheatlink
 ```
 
-既存の `test` ターゲットは実行ファイルの作成まで行う。テストは対応するディレクトリで実行する。特に `test_heatlink_config` は `src/heatlink` を作業ディレクトリとして相対パスの人工設定を読む。
+The existing `test` targets build executables; run them separately from their corresponding directories. In particular, `test_heatlink_config` reads relative fixture paths from `src/heatlink`.
 
 ```sh
 (cd src/heatlink && ./test_temperature_dry_state)
@@ -71,6 +88,6 @@ make -r -j1 -C src/phys test DHEATLINK=-Dheatlink
 (cd src/phys && ./test_heat_budget)
 ```
 
-追加テストは、実際の異常発生時の小規模な状態、閾値の直前・一致・直後、乾燥・再湿潤・再凍結・融解、正負の未適用熱、微小流束のオーバーフロー、境界熱交換、桁落ちを起こす人工例、比の無効判定と独立した極値を扱う。既存の水・氷移流、境界、相変化テストとともに実施する。`test_river_water_advection_cold_inflow` は融点未満の液体流入を理由に停止することが期待結果。
+The added tests cover small reproductions of observed anomalous states, values below/at/above the dry threshold, drying, rewetting, refreezing, melting, signed unapplied heat, tiny-flux overflow, boundary heat exchange, cancellation-prone synthetic states, invalid ratios and independent extrema. Run them alongside the existing water/ice transport, boundary and phase-change tests. `test_river_water_advection_cold_inflow` is expected to stop because liquid inflow is below the melting point.
 
-精度切替時は、異なるkindのオブジェクトやmoduleを混在させず、依存ライブラリを含めてcleanから再ビルドする。`DSINGLE=-DSinglePrec_CMF` が単精度、`DSINGLE=` が倍精度。既存の単精度氷表面Newton収束テストの未合格は別課題であり、この安定化で収束条件を変更してはいない。
+When switching precision, clean and rebuild all dependencies so that objects and modules with different kinds are not mixed. `DSINGLE=-DSinglePrec_CMF` selects single precision; `DSINGLE=` selects double precision. The existing single-precision ice-surface Newton convergence test failure is a separate issue; this stabilization does not change its convergence criterion.

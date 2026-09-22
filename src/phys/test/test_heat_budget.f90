@@ -45,7 +45,7 @@ program test_heat_budget
 contains
 
 subroutine test_liquid_temperature_update()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_temperature_k, & ! [K] Liquid-water temperature.
     &   liquid_water_volume_m3, &     ! [m3] Liquid-water volume.
     &   added_energy_j                ! [J] Energy added to liquid water.
@@ -59,7 +59,7 @@ subroutine test_liquid_temperature_update()
     &   'liquid sensible heating [K]')
 
     liquid_water_temperature_k = 280.0_JPRB
-    liquid_water_volume_m3 = 0.5_JPRB * real(STO_IGNORE, kind=JPRB)
+    liquid_water_volume_m3 = 0.5_JPRB * real(STO_IGNORE, kind = JPRB)
     call update_liquid_temperature_no_phase_change( &
     &   liquid_water_temperature_k, liquid_water_volume_m3, added_energy_j)
     call assert_close(liquid_water_temperature_k, 280.0_JPRB, 0.0_JPRB, &
@@ -68,7 +68,7 @@ end subroutine test_liquid_temperature_update
 
 
 subroutine test_partial_freezing()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_volume_m3, liquid_water_temperature_k, & ! [m3], [K] Liquid state.
     &   ice_volume_m3, ice_temperature_k, &                   ! [m3], [K] Ice state.
     &   added_energy_j, &                                     ! [J] Energy added to the system.
@@ -100,7 +100,7 @@ end subroutine test_partial_freezing
 
 
 subroutine test_complete_freezing_and_ice_cooling()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_volume_m3, liquid_water_temperature_k, & ! [m3], [K] Liquid state.
     &   ice_volume_m3, ice_temperature_k, &                   ! [m3], [K] Ice state.
     &   added_energy_j, &                                     ! [J] Energy added to the system.
@@ -130,7 +130,7 @@ end subroutine test_complete_freezing_and_ice_cooling
 
 
 subroutine test_partial_melting()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_volume_m3, liquid_water_temperature_k, & ! [m3], [K] Liquid state.
     &   ice_volume_m3, ice_temperature_k, &                   ! [m3], [K] Ice state.
     &   added_energy_j, &                                     ! [J] Energy added to the system.
@@ -158,7 +158,7 @@ end subroutine test_partial_melting
 
 
 subroutine test_complete_melting_and_water_warming()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_volume_m3, liquid_water_temperature_k, & ! [m3], [K] Liquid state.
     &   ice_volume_m3, ice_temperature_k, &                   ! [m3], [K] Ice state.
     &   added_energy_j, &                                     ! [J] Energy added to the system.
@@ -188,7 +188,7 @@ end subroutine test_complete_melting_and_water_warming
 
 
 subroutine test_empty_system_residual()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   liquid_water_volume_m3, liquid_water_temperature_k, & ! [m3], [K] Liquid state.
     &   ice_volume_m3, ice_temperature_k, &                   ! [m3], [K] Ice state.
     &   added_energy_j, &                                     ! [J] Energy added to the system.
@@ -214,7 +214,7 @@ end subroutine test_empty_system_residual
 
 
 subroutine test_separate_water_budget_freezing()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -243,7 +243,7 @@ end subroutine test_separate_water_budget_freezing
 
 
 subroutine test_separate_surface_ice_melting()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -270,7 +270,7 @@ end subroutine test_separate_surface_ice_melting
 
 
 subroutine test_separate_surface_cooling_freezes_warm_water()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -297,7 +297,7 @@ end subroutine test_separate_surface_cooling_freezes_warm_water
 
 
 subroutine test_separate_excess_ice_only_melts()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -331,7 +331,7 @@ end subroutine test_separate_excess_ice_only_melts
 
 
 subroutine test_separate_complete_melt_warms_water()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -357,7 +357,7 @@ end subroutine test_separate_complete_melt_warms_water
 
 
 subroutine test_separate_complete_freeze_residual()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -382,7 +382,7 @@ end subroutine test_separate_complete_freeze_residual
 
 
 subroutine test_separate_zero_and_tiny_water()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -423,7 +423,7 @@ end subroutine test_separate_zero_and_tiny_water
 
 
 subroutine test_separate_large_ice_volume()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   initial_mass_kg, initial_energy_j, &     ! [kg], [J] Conservation scales before the update.
@@ -447,22 +447,22 @@ subroutine test_separate_large_ice_volume()
     &   surface_ice_volume_m3 + excess_ice_volume_m3, TMELT)
 
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=0.0_JPRB, &
-    &   surface_ice_added_energy_j=0.0_JPRB, &
-    &   excess_ice_added_energy_j=excess_melt_energy_j, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = 0.0_JPRB, &
+    &   surface_ice_added_energy_j = 0.0_JPRB, &
+    &   excess_ice_added_energy_j = excess_melt_energy_j, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
 
     call assert_true(state_is_valid, 'large-volume local state is valid')
     call assert_true(.not. nonfinite_input_detected, 'large-volume inputs are finite')
@@ -484,9 +484,9 @@ end subroutine test_separate_large_ice_volume
 subroutine test_separate_abrupt_phase_cycles()
     integer, parameter :: &
     &   number_of_cycles = 100
-    real(kind=JPRB), parameter :: &
+    real(kind = JPRB), parameter :: &
     &   initial_water_volume_m3 = 2.0_JPRB ! [m3] Liquid water at the start of every cycle.
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, & ! [kg] Phase changes.
@@ -528,7 +528,7 @@ end subroutine test_separate_abrupt_phase_cycles
 subroutine test_separate_substep_invariance()
     integer, parameter :: &
     &   number_of_substeps = 12
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   one_step_water_volume_m3, one_step_water_temperature_k, & ! [m3], [K] One-step liquid state.
     &   one_step_surface_ice_volume_m3, one_step_excess_ice_volume_m3, & ! [m3] One-step ice state.
     &   split_water_volume_m3, split_water_temperature_k, & ! [m3], [K] Substepped liquid state.
@@ -559,7 +559,7 @@ subroutine test_separate_substep_invariance()
         call check_separate_update( &
         &   split_water_volume_m3, split_water_temperature_k, &
         &   split_surface_ice_volume_m3, split_excess_ice_volume_m3, &
-        &   total_added_energy_j / real(number_of_substeps, kind=JPRB), &
+        &   total_added_energy_j / real(number_of_substeps, kind = JPRB), &
         &   0.0_JPRB, 0.0_JPRB, &
         &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, unapplied_energy_j)
     enddo
@@ -590,7 +590,7 @@ subroutine test_separate_substep_invariance()
         call check_separate_update( &
         &   split_water_volume_m3, split_water_temperature_k, &
         &   split_surface_ice_volume_m3, split_excess_ice_volume_m3, &
-        &   0.0_JPRB, total_added_energy_j / real(number_of_substeps, kind=JPRB), &
+        &   0.0_JPRB, total_added_energy_j / real(number_of_substeps, kind = JPRB), &
         &   0.0_JPRB, &
         &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, unapplied_energy_j)
     enddo
@@ -604,7 +604,7 @@ end subroutine test_separate_substep_invariance
 
 
 subroutine test_tiny_negative_state_normalization()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   water_correction_m3, surface_ice_correction_m3, & ! [m3] Tiny negative-volume magnitudes.
@@ -628,22 +628,22 @@ subroutine test_tiny_negative_state_normalization()
     &   RI * surface_ice_correction_m3 * HFUS
 
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=0.0_JPRB, &
-    &   surface_ice_added_energy_j=0.0_JPRB, &
-    &   excess_ice_added_energy_j=0.0_JPRB, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = 0.0_JPRB, &
+    &   surface_ice_added_energy_j = 0.0_JPRB, &
+    &   excess_ice_added_energy_j = 0.0_JPRB, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
 
     call assert_true(state_is_valid, 'tiny negative volumes are accepted')
     call assert_true(.not. nonfinite_input_detected, 'tiny negative inputs are finite')
@@ -661,7 +661,7 @@ end subroutine test_tiny_negative_state_normalization
 
 
 subroutine test_invalid_local_state_detection()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_volume_m3, water_temperature_k, & ! [m3], [K] Liquid-water state.
     &   surface_ice_volume_m3, excess_ice_volume_m3, & ! [m3] Ice-pool states.
     &   liquid_added_energy_j, &                ! [J] Energy added directly to liquid water.
@@ -678,22 +678,22 @@ subroutine test_invalid_local_state_detection()
     excess_ice_volume_m3 = 0.0_JPRB
     liquid_added_energy_j = 0.0_JPRB
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=liquid_added_energy_j, &
-    &   surface_ice_added_energy_j=0.0_JPRB, &
-    &   excess_ice_added_energy_j=0.0_JPRB, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = liquid_added_energy_j, &
+    &   surface_ice_added_energy_j = 0.0_JPRB, &
+    &   excess_ice_added_energy_j = 0.0_JPRB, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
     call assert_true(.not. state_is_valid, 'large negative volume is rejected')
     call assert_true(.not. nonfinite_input_detected, 'large negative volume remains finite')
     call assert_close(maximum_negative_volume_m3, &
@@ -706,44 +706,44 @@ subroutine test_invalid_local_state_detection()
     water_volume_m3 = 1.0_JPRB
     water_temperature_k = ieee_value(0.0_JPRB, ieee_quiet_nan)
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=0.0_JPRB, &
-    &   surface_ice_added_energy_j=0.0_JPRB, &
-    &   excess_ice_added_energy_j=0.0_JPRB, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = 0.0_JPRB, &
+    &   surface_ice_added_energy_j = 0.0_JPRB, &
+    &   excess_ice_added_energy_j = 0.0_JPRB, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
     call assert_true(.not. state_is_valid, 'NaN state is rejected')
     call assert_true(nonfinite_input_detected, 'NaN state is reported as nonfinite')
 
     water_temperature_k = TMELT
     liquid_added_energy_j = ieee_value(0.0_JPRB, ieee_positive_inf)
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=liquid_added_energy_j, &
-    &   surface_ice_added_energy_j=0.0_JPRB, &
-    &   excess_ice_added_energy_j=0.0_JPRB, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = liquid_added_energy_j, &
+    &   surface_ice_added_energy_j = 0.0_JPRB, &
+    &   excess_ice_added_energy_j = 0.0_JPRB, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
     call assert_true(.not. state_is_valid, 'infinite energy input is rejected')
     call assert_true(nonfinite_input_detected, 'infinite energy input is reported as nonfinite')
 end subroutine test_invalid_local_state_detection
@@ -753,21 +753,21 @@ subroutine check_separate_update( &
     &   water_volume_m3, water_temperature_k, surface_ice_volume_m3, excess_ice_volume_m3, &
     &   water_added_energy_j, surface_ice_added_energy_j, excess_ice_added_energy_j, &
     &   frozen_mass_kg, surface_melted_mass_kg, excess_melted_mass_kg, unapplied_energy_j)
-    real(kind=JPRB), intent(inout) :: &
+    real(kind = JPRB), intent(inout) :: &
     &   water_volume_m3, &          ! [m3] Liquid-water volume before and after the update.
     &   water_temperature_k, &      ! [K] Liquid-water temperature before and after the update.
     &   surface_ice_volume_m3, &    ! [m3] Water-surface ice volume before and after the update.
     &   excess_ice_volume_m3        ! [m3] Immobile excess-ice volume before and after the update.
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   water_added_energy_j, &       ! [J] Energy added directly to liquid water.
     &   surface_ice_added_energy_j, & ! [J] Energy added to water-surface ice.
     &   excess_ice_added_energy_j     ! [J] Energy added to immobile excess ice.
-    real(kind=JPRB), intent(out) :: &
+    real(kind = JPRB), intent(out) :: &
     &   frozen_mass_kg, &             ! [kg] Liquid-water mass converted to water-surface ice.
     &   surface_melted_mass_kg, &     ! [kg] Water-surface ice mass melted.
     &   excess_melted_mass_kg, &      ! [kg] Immobile excess-ice mass melted.
     &   unapplied_energy_j             ! [J] Energy not applied by the update.
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   mass_budget_error_kg, &        ! [kg] Mass-conservation error returned by the update.
     &   energy_budget_error_j, &       ! [J] Energy-conservation error returned by the update.
     &   maximum_negative_volume_m3     ! [m3] Largest negative input-volume magnitude.
@@ -775,29 +775,29 @@ subroutine check_separate_update( &
     &   state_is_valid, &              ! [-] Local-state validation result.
     &   nonfinite_input_detected       ! [-] Nonfinite-input detection result.
 
-    real(kind=JPRB) :: mass_scale_kg, energy_scale_j
+    real(kind = JPRB) :: mass_scale_kg, energy_scale_j
 
     mass_scale_kg = water_ice_mass_kg(water_volume_m3,surface_ice_volume_m3+excess_ice_volume_m3)
     energy_scale_j = max(abs(water_ice_energy_j(water_volume_m3,water_temperature_k, &
     &   surface_ice_volume_m3+excess_ice_volume_m3,TMELT)), abs(water_added_energy_j), &
     &   abs(surface_ice_added_energy_j), abs(excess_ice_added_energy_j))
     call update_local_water_ice_state( &
-    &   liquid_water_volume_m3=water_volume_m3, &
-    &   liquid_water_temperature_k=water_temperature_k, &
-    &   surface_ice_volume_m3=surface_ice_volume_m3, &
-    &   excess_ice_volume_m3=excess_ice_volume_m3, &
-    &   liquid_water_added_energy_j=water_added_energy_j, &
-    &   surface_ice_added_energy_j=surface_ice_added_energy_j, &
-    &   excess_ice_added_energy_j=excess_ice_added_energy_j, &
-    &   frozen_water_mass_kg=frozen_mass_kg, &
-    &   surface_ice_melted_mass_kg=surface_melted_mass_kg, &
-    &   excess_ice_melted_mass_kg=excess_melted_mass_kg, &
-    &   unapplied_energy_j=unapplied_energy_j, &
-    &   mass_budget_error_kg=mass_budget_error_kg, &
-    &   energy_budget_error_j=energy_budget_error_j, &
-    &   state_is_valid=state_is_valid, &
-    &   nonfinite_input_detected=nonfinite_input_detected, &
-    &   maximum_negative_volume_m3=maximum_negative_volume_m3)
+    &   liquid_water_volume_m3 = water_volume_m3, &
+    &   liquid_water_temperature_k = water_temperature_k, &
+    &   surface_ice_volume_m3 = surface_ice_volume_m3, &
+    &   excess_ice_volume_m3 = excess_ice_volume_m3, &
+    &   liquid_water_added_energy_j = water_added_energy_j, &
+    &   surface_ice_added_energy_j = surface_ice_added_energy_j, &
+    &   excess_ice_added_energy_j = excess_ice_added_energy_j, &
+    &   frozen_water_mass_kg = frozen_mass_kg, &
+    &   surface_ice_melted_mass_kg = surface_melted_mass_kg, &
+    &   excess_ice_melted_mass_kg = excess_melted_mass_kg, &
+    &   unapplied_energy_j = unapplied_energy_j, &
+    &   mass_budget_error_kg = mass_budget_error_kg, &
+    &   energy_budget_error_j = energy_budget_error_j, &
+    &   state_is_valid = state_is_valid, &
+    &   nonfinite_input_detected = nonfinite_input_detected, &
+    &   maximum_negative_volume_m3 = maximum_negative_volume_m3)
 
     call assert_true(state_is_valid, 'separate-budget local state is valid')
     call assert_true(.not. nonfinite_input_detected, 'separate-budget inputs are finite')
@@ -809,7 +809,7 @@ end subroutine check_separate_update
 
 
 subroutine test_ice_longwave_fluxes()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   downward_longwave_w_m2, &       ! [W m-2] Downward longwave radiation incident on ice.
     &   ice_surface_temperature_k, &    ! [K] Prescribed upper-surface ice temperature.
     &   absorbed_longwave_w_m2, &       ! [W m-2] Longwave radiation absorbed by ice.
@@ -833,7 +833,7 @@ end subroutine test_ice_longwave_fluxes
 
 
 subroutine test_ice_surface_heat_flux()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   net_ice_heat_flux_w_m2, &      ! [W m-2] Computed net atmospheric heat flux into ice.
     &   transmitted_shortwave_w_m2, & ! [W m-2] Computed shortwave radiation below the ice.
     &   upward_conductive_heat_flux_w_m2, & ! [W m-2] Computed bottom-to-surface ice conduction.
@@ -966,7 +966,7 @@ end subroutine test_ice_surface_heat_flux
 subroutine test_ice_surface_newton_convergence_range()
     integer, parameter :: &
     &   case_count = 4                  ! [-] Number of forcing and ice-geometry cases.
-    real(kind=JPRB), parameter :: &
+    real(kind = JPRB), parameter :: &
     &   downward_shortwave_w_m2(case_count) = [ &
     &       0.0_JPRB, 0.0_JPRB, 0.0_JPRB, 500.0_JPRB], &
     &   downward_longwave_w_m2(case_count) = [ &
@@ -977,7 +977,7 @@ subroutine test_ice_surface_newton_convergence_range()
     &       0.01_JPRB, 20.0_JPRB, 1.0_JPRB, 1.0_JPRB], &
     &   bottom_thermal_conductance_w_m2_k(case_count) = [ &
     &       KI / 0.01_JPRB, KI / 20.0_JPRB, 0.0_JPRB, KI]
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   net_ice_heat_flux_w_m2, &       ! [W m-2] Atmospheric heat flux into ice.
     &   transmitted_shortwave_w_m2, &   ! [W m-2] Shortwave transmitted through ice.
     &   ice_surface_temperature_k, &    ! [K] Diagnosed upper-surface ice temperature.
@@ -1016,11 +1016,11 @@ subroutine test_ice_surface_newton_convergence_range()
 end subroutine test_ice_surface_newton_convergence_range
 
 
-pure real(kind=JPRB) function atmospheric_ice_flux_w_m2( &
+pure real(kind = JPRB) function atmospheric_ice_flux_w_m2( &
     &   surface_temperature_k, downward_shortwave_w_m2, &
     &   transmitted_shortwave_w_m2, downward_longwave_w_m2, &
     &   air_temperature_k) result(net_flux_w_m2)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   surface_temperature_k, &       ! [K] Ice upper-surface temperature.
     &   downward_shortwave_w_m2, &     ! [W m-2] Downward shortwave radiation above the ice.
     &   transmitted_shortwave_w_m2, &  ! [W m-2] Shortwave radiation transmitted through the ice.
@@ -1039,17 +1039,17 @@ subroutine check_equilibration( &
     &   liquid_water_volume_m3, liquid_water_temperature_k, &
     &   ice_volume_m3, ice_temperature_k, added_energy_j, &
     &   ice_mass_change_kg, residual_energy_j)
-    real(kind=JPRB), intent(inout) :: &
+    real(kind = JPRB), intent(inout) :: &
     &   liquid_water_volume_m3, &     ! [m3] Liquid-water volume before and after equilibration.
     &   liquid_water_temperature_k, & ! [K] Liquid-water temperature before and after equilibration.
     &   ice_volume_m3, &              ! [m3] Ice volume before and after equilibration.
     &   ice_temperature_k             ! [K] Ice temperature before and after equilibration.
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   added_energy_j                 ! [J] Energy added to the local water-ice system.
-    real(kind=JPRB), intent(out) :: &
+    real(kind = JPRB), intent(out) :: &
     &   ice_mass_change_kg, &          ! [kg] Ice-mass change; positive freezes and negative melts.
     &   residual_energy_j              ! [J] Energy not applied by the phase-change kernel.
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   mass_before_kg, mass_after_kg, & ! [kg] Total mass before and after equilibration.
     &   energy_before_j, energy_after_j  ! [J] Total energy before and after equilibration.
 
@@ -1081,13 +1081,13 @@ end subroutine check_equilibration
 
 
 subroutine assert_close(actual_value, expected_value, relative_tolerance, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_value, &       ! [caller-defined unit] Computed value.
     &   expected_value, &     ! [caller-defined unit] Expected value.
     &   relative_tolerance    ! [-] Relative comparison tolerance.
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label                 ! [-] Human-readable assertion label.
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   absolute_tolerance    ! [caller-defined unit] Scaled absolute tolerance.
 
     absolute_tolerance = relative_tolerance * max(1.0_JPRB, abs(expected_value))
@@ -1105,10 +1105,10 @@ end subroutine assert_close
 
 
 subroutine assert_abs_le(actual_value, maximum_absolute_value, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_value, &             ! [caller-defined unit] Computed value.
     &   maximum_absolute_value      ! [caller-defined unit] Maximum accepted absolute value.
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label                       ! [-] Human-readable assertion label.
 
     if (abs(actual_value) <= maximum_absolute_value) return
@@ -1121,9 +1121,9 @@ end subroutine assert_abs_le
 
 
 subroutine assert_finite(actual_value, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_value             ! [caller-defined unit] Computed value.
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label                    ! [-] Human-readable assertion label.
 
     if (ieee_is_finite(actual_value)) return
@@ -1137,7 +1137,7 @@ end subroutine assert_finite
 subroutine assert_true(condition, label)
     logical, intent(in) :: &
     &   condition             ! [-] Condition expected to be true.
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label                 ! [-] Human-readable assertion label.
 
     if (condition) return

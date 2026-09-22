@@ -15,12 +15,12 @@ program test_river_water_ice_advection_energy
     &   enforce_surface_ice_capacity
     implicit none
 
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), surface_ice_volume_m3(3), &
     &   surface_ice_fraction(3), immobile_excess_ice_volume_m3(3), &
     &   initial_immobile_excess_ice_volume_m3(3), &
     &   normal_flow_m3s(3), bifurcation_flow_m3s(1)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), &
     &   heat_budget_error_j(3), water_budget_error_m3(3), &
     &   unapplied_sensible_heat_j(3), domain_heat_budget_error_j, &
@@ -45,25 +45,25 @@ program test_river_water_ice_advection_energy
     call advect_river_water_sensible_heat( &
     &   water_temperature_k, liquid_volume_before_m3, liquid_volume_after_m3, &
     &   normal_flow_m3s, 1.0_JPRB, &
-    &   bifurcation_flow_m3s=bifurcation_flow_m3s, &
-    &   heat_budget_error_j=heat_budget_error_j, &
-    &   water_budget_error_m3=water_budget_error_m3, &
-    &   unapplied_sensible_heat_j=unapplied_sensible_heat_j, &
-    &   domain_heat_budget_error_j=domain_heat_budget_error_j)
+    &   bifurcation_flow_m3s = bifurcation_flow_m3s, &
+    &   heat_budget_error_j = heat_budget_error_j, &
+    &   water_budget_error_m3 = water_budget_error_m3, &
+    &   unapplied_sensible_heat_j = unapplied_sensible_heat_j, &
+    &   domain_heat_budget_error_j = domain_heat_budget_error_j)
     call advect_river_surface_ice( &
     &   surface_ice_volume_m3, surface_ice_fraction, &
     &   liquid_volume_before_m3, normal_flow_m3s, 1.0_JPRB, &
-    &   bifurcation_flow_m3s=bifurcation_flow_m3s, &
-    &   ice_budget_error_m3=ice_budget_error_m3, &
-    &   domain_ice_budget_error_m3=domain_ice_budget_error_m3)
+    &   bifurcation_flow_m3s = bifurcation_flow_m3s, &
+    &   ice_budget_error_m3 = ice_budget_error_m3, &
+    &   domain_ice_budget_error_m3 = domain_ice_budget_error_m3)
 
     final_energy_j = total_water_ice_energy_j( &
     &   water_temperature_k, liquid_volume_after_m3, &
     &   surface_ice_volume_m3, immobile_excess_ice_volume_m3)
     combined_energy_budget_error_j(:) = heat_budget_error_j(:) - &
-    &   real(RI, kind=JPRD) * real(HFUS, kind=JPRD) * ice_budget_error_m3(:)
+    &   real(RI, kind = JPRD) * real(HFUS, kind = JPRD) * ice_budget_error_m3(:)
     domain_combined_energy_budget_error_j = domain_heat_budget_error_j - &
-    &   real(RI, kind=JPRD) * real(HFUS, kind=JPRD) * domain_ice_budget_error_m3
+    &   real(RI, kind = JPRD) * real(HFUS, kind = JPRD) * domain_ice_budget_error_m3
 
     call assert_small(abs(final_energy_j - initial_energy_j), abs(initial_energy_j), &
     &   'closed-system water-plus-ice energy conservation [J]')
@@ -84,13 +84,13 @@ program test_river_water_ice_advection_energy
 contains
 
 subroutine check_dry_receiver_uses_updated_surface_area()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), &
     &   excess_ice_volume_m3(3), normal_flow_m3s(3), &
     &   updated_water_surface_area_m2(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
-    integer(kind=JPIM) :: &
+    integer(kind = JPIM) :: &
     &   iseq
 
     call set_three_cell_topology()
@@ -122,7 +122,7 @@ end subroutine check_dry_receiver_uses_updated_surface_area
 
 
 subroutine check_contracted_surface_capacity()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3, excess_ice_volume_m3, total_ice_volume_m3
 
     surface_ice_volume_m3 = 50.0_JPRB
@@ -149,8 +149,8 @@ subroutine set_three_cell_topology()
     NSEQRIV = 2_JPIM
     NPTHOUT = 1_JPIM
     allocate(I1NEXT(NSEQALL))
-    allocate(D2RIVLEN(NSEQALL, 1), source=1.0_JPRB)
-    allocate(D2RIVWTH(NSEQALL, 1), source=1.0_JPRB)
+    allocate(D2RIVLEN(NSEQALL, 1), source = 1.0_JPRB)
+    allocate(D2RIVWTH(NSEQALL, 1), source = 1.0_JPRB)
     allocate(PTH_UPST(NPTHOUT), PTH_DOWN(NPTHOUT))
     I1NEXT(:) = [2_JPIM, 3_JPIM, -9_JPIM]
     PTH_UPST(1) = 1_JPIM
@@ -161,28 +161,28 @@ end subroutine set_three_cell_topology
 function total_water_ice_energy_j( &
     &   water_temperature_k, liquid_volume_m3, &
     &   surface_ice_volume_m3, immobile_excess_ice_volume_m3) result(total_energy_j)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   water_temperature_k(:), surface_ice_volume_m3(:), &
     &   immobile_excess_ice_volume_m3(:)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   liquid_volume_m3(:)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   total_energy_j
 
-    total_energy_j = real(RW, kind=JPRD) * real(CW, kind=JPRD) * sum( &
+    total_energy_j = real(RW, kind = JPRD) * real(CW, kind = JPRD) * sum( &
     &   liquid_volume_m3(:) * &
-    &   real(water_temperature_k(:) - TMELT, kind=JPRD)) - &
-    &   real(RI, kind=JPRD) * real(HFUS, kind=JPRD) * sum(real( &
-    &   surface_ice_volume_m3(:) + immobile_excess_ice_volume_m3(:), kind=JPRD))
+    &   real(water_temperature_k(:) - TMELT, kind = JPRD)) - &
+    &   real(RI, kind = JPRD) * real(HFUS, kind = JPRD) * sum(real( &
+    &   surface_ice_volume_m3(:) + immobile_excess_ice_volume_m3(:), kind = JPRD))
 end function total_water_ice_energy_j
 
 
 subroutine assert_exact_array(actual_values, expected_values, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_values(:), expected_values(:)
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    integer(kind=JPIM) :: &
+    integer(kind = JPIM) :: &
     &   iseq
 
     do iseq = 1, size(actual_values)
@@ -194,11 +194,11 @@ end subroutine assert_exact_array
 
 
 subroutine assert_small(actual_error, scale, label)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   actual_error, scale
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   tolerance
 
     tolerance = max(1.0e-12_JPRD, 16.0_JPRD*real(epsilon(1.0_JPRB),JPRD)) * max(scale, 1.0_JPRD)

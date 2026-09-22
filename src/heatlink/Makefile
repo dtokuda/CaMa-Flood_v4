@@ -20,6 +20,7 @@ OBJS = \
 	topo_mod.o \
 	heat_residual_mod.o \
 	heat_step_monitor_mod.o \
+	heatlink_diagnostics_mod.o \
 	thermo_mod.o \
 	water_storage_adapter_mod.o \
 	river_water_advection_mod.o \
@@ -66,7 +67,9 @@ $(LIBNAME): $(OBJS)
 	@rm -f $@
 	ar -rv $@ $(OBJS)
 
-heatlink_river_mod.o: heat_step_monitor_mod.o heat_residual_mod.o thermo_mod.o heatlink_config_mod.o heatlink_velocity_mod.o \
+heatlink_diagnostics_mod.o: heat_step_monitor_mod.o heat_residual_mod.o heatlink_config_mod.o
+
+heatlink_river_mod.o: heatlink_diagnostics_mod.o thermo_mod.o heatlink_config_mod.o heatlink_velocity_mod.o \
 	water_storage_adapter_mod.o \
 	river_water_advection_mod.o river_ice_advection_mod.o
 

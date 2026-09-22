@@ -5,7 +5,7 @@ program test_heat_step_monitor
     type(HeatStepState) :: state
     type(HeatStepLedger) :: ledger
     type(HeatStepStats) :: stats
-    real(kind=JPRD) :: delta, scale, naive
+    real(kind = JPRD) :: delta, scale, naive
     integer :: unit
 
     call check(step_sum([1.0e16_JPRD,1.0_JPRD,-1.0e16_JPRD]) == 1.0_JPRD,'compensated cancellation')
@@ -24,7 +24,7 @@ program test_heat_step_monitor
     &   [1.0_JPRD],[2.0_JPRD])
     call check(delta == 0.0_JPRD .and. scale == 14.0_JPRD,'latent and sensible cancellation')
 
-    open(newunit=unit,status='scratch',action='readwrite')
+    open(newunit = unit,status = 'scratch',action = 'readwrite')
     call add_step_heat(ledger,10.0_JPRD,10.0_JPRD,2.0_JPRD,2.0_JPRD)
     call monitor_heat_step(stats,unit,'test',1.0_JPRD,1.0_JPRD,9.0_JPRD,100.0_JPRD,9.0_JPRD,ledger)
     call check(stats%min_record(9,2) == 1.0_JPRD,'first positive minimum is not zero')
@@ -55,7 +55,7 @@ program test_heat_step_monitor
 contains
 subroutine check(ok, label)
     logical, intent(in) :: ok
-    character(len=*), intent(in) :: label
+    character(len = *), intent(in) :: label
     if (.not. ok) then
         print *, 'FAIL: ',label
         stop 1

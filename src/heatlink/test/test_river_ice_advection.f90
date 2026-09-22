@@ -43,9 +43,9 @@ end subroutine test_transport_fraction_zero_one_and_partial
 
 
 subroutine test_forward_surface_ice_pulse()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), initial_total_ice_m3
 
     call set_three_cell_topology()
@@ -53,7 +53,7 @@ subroutine test_forward_surface_ice_pulse()
     surface_ice_fraction(:) = 0.0_JPRB
     liquid_volume_before_m3(:) = 10.0_JPRD
     normal_flow_m3s(:) = [2.0_JPRB, 0.0_JPRB, 0.0_JPRB]
-    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind=JPRD))
+    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind = JPRD))
 
     call advect_river_surface_ice( &
     &   surface_ice_volume_m3, surface_ice_fraction, &
@@ -71,9 +71,9 @@ end subroutine test_forward_surface_ice_pulse
 
 
 subroutine test_reverse_and_zero_flow()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), initial_total_ice_m3
 
     call set_three_cell_topology()
@@ -81,7 +81,7 @@ subroutine test_reverse_and_zero_flow()
     surface_ice_fraction(:) = 0.0_JPRB
     liquid_volume_before_m3(:) = 10.0_JPRD
     normal_flow_m3s(:) = [-2.0_JPRB, 0.0_JPRB, 0.0_JPRB]
-    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind=JPRD))
+    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind = JPRD))
 
     call advect_river_surface_ice( &
     &   surface_ice_volume_m3, surface_ice_fraction, &
@@ -99,9 +99,9 @@ end subroutine test_reverse_and_zero_flow
 
 
 subroutine test_complete_transport()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -122,9 +122,9 @@ end subroutine test_complete_transport
 
 
 subroutine test_total_outflow_is_limited_by_available_ice()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), initial_total_ice_m3
 
     call set_three_cell_topology()
@@ -132,7 +132,7 @@ subroutine test_total_outflow_is_limited_by_available_ice()
     surface_ice_fraction(:) = 0.0_JPRB
     liquid_volume_before_m3(:) = 10.0_JPRD
     normal_flow_m3s(:) = [-20.0_JPRB, 5.0_JPRB, 0.0_JPRB]
-    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind=JPRD))
+    initial_total_ice_m3 = sum(real(surface_ice_volume_m3, kind = JPRD))
 
     call advect_river_surface_ice( &
     &   surface_ice_volume_m3, surface_ice_fraction, &
@@ -150,9 +150,9 @@ end subroutine test_total_outflow_is_limited_by_available_ice
 
 
 subroutine test_fully_frozen_cells_slow_surface_ice()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -188,9 +188,9 @@ end subroutine test_fully_frozen_cells_slow_surface_ice
 
 
 subroutine test_shallow_source_retains_surface_ice()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -213,9 +213,9 @@ end subroutine test_shallow_source_retains_surface_ice
 
 
 subroutine test_threshold_source_transports_surface_ice()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -236,9 +236,9 @@ end subroutine test_threshold_source_transports_surface_ice
 
 
 subroutine test_dry_source_retains_surface_ice()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), surface_ice_fraction(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -259,11 +259,11 @@ end subroutine test_dry_source_retains_surface_ice
 
 
 subroutine test_immobile_excess_ice_is_unchanged()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   surface_ice_volume_m3(3), immobile_excess_ice_volume_m3(3), &
     &   initial_immobile_excess_ice_volume_m3(3), surface_ice_fraction(3), &
     &   normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3)
 
     call set_three_cell_topology()
@@ -292,31 +292,31 @@ subroutine set_three_cell_topology()
     NSEQRIV = 2_JPIM
     NPTHOUT = 0_JPIM
     allocate(I1NEXT(NSEQALL))
-    allocate(D2RIVLEN(NSEQALL, 1), source=1.0_JPRB)
-    allocate(D2RIVWTH(NSEQALL, 1), source=1.0_JPRB)
+    allocate(D2RIVLEN(NSEQALL, 1), source = 1.0_JPRB)
+    allocate(D2RIVWTH(NSEQALL, 1), source = 1.0_JPRB)
     I1NEXT(:) = [2_JPIM, 3_JPIM, -9_JPIM]
 end subroutine set_three_cell_topology
 
 
 subroutine assert_ice_conserved(expected_total_ice_m3, surface_ice_volume_m3, label)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   expected_total_ice_m3
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   surface_ice_volume_m3(:)
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
 
-    call assert_close_jprd(sum(real(surface_ice_volume_m3, kind=JPRD)), &
+    call assert_close_jprd(sum(real(surface_ice_volume_m3, kind = JPRD)), &
     &   expected_total_ice_m3, trim(label)//' closed-system ice volume [m3]')
 end subroutine assert_ice_conserved
 
 
 subroutine assert_exact_array(actual_values, expected_values, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_values(:), expected_values(:)
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    integer(kind=JPIM) :: &
+    integer(kind = JPIM) :: &
     &   iseq
 
     do iseq = 1, size(actual_values)
@@ -328,11 +328,11 @@ end subroutine assert_exact_array
 
 
 subroutine assert_close(actual_value, expected_value, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_value, expected_value
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   tolerance
 
     tolerance = max(1.0e-12_JPRB, 8.0_JPRB*epsilon(1.0_JPRB)) * max(1.0_JPRB, abs(expected_value))
@@ -345,11 +345,11 @@ end subroutine assert_close
 
 
 subroutine assert_close_jprd(actual_value, expected_value, label)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   actual_value, expected_value
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   tolerance
 
     tolerance = 1.0e-13_JPRD * max(1.0_JPRD, abs(expected_value))

@@ -21,9 +21,9 @@ program test_river_water_advection
 contains
 
 subroutine test_forward_temperature_pulse()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology()
@@ -51,9 +51,9 @@ end subroutine test_forward_temperature_pulse
 
 
 subroutine test_uniform_temperature_is_unchanged()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology()
@@ -81,9 +81,9 @@ end subroutine test_uniform_temperature_is_unchanged
 
 
 subroutine test_reverse_and_zero_flow()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology()
@@ -111,9 +111,9 @@ end subroutine test_reverse_and_zero_flow
 
 
 subroutine test_total_outflow_is_limited_by_available_heat()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology()
@@ -141,9 +141,9 @@ end subroutine test_total_outflow_is_limited_by_available_heat
 
 
 subroutine test_inflow_to_dry_cell()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology()
@@ -171,9 +171,9 @@ end subroutine test_inflow_to_dry_cell
 
 
 subroutine test_zero_and_tiny_liquid_volume()
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3)
 
     call set_three_cell_topology()
@@ -207,28 +207,28 @@ end subroutine set_three_cell_topology
 
 function total_sensible_heat_j( &
     &   water_temperature_k, liquid_volume_m3) result(sensible_heat_j)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   water_temperature_k(:)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   liquid_volume_m3(:)
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   sensible_heat_j
 
-    sensible_heat_j = real(RW, kind=JPRD) * real(CW, kind=JPRD) * sum( &
+    sensible_heat_j = real(RW, kind = JPRD) * real(CW, kind = JPRD) * sum( &
     &   liquid_volume_m3(:) * real( &
-    &   water_temperature_k(:) - TMELT, kind=JPRD))
+    &   water_temperature_k(:) - TMELT, kind = JPRD))
 end function total_sensible_heat_j
 
 
 subroutine assert_heat_conserved( &
     &   expected_heat_j, water_temperature_k, liquid_volume_m3, label)
-    real(kind=JPRD), intent(in) :: &
+    real(kind = JPRD), intent(in) :: &
     &   expected_heat_j, liquid_volume_m3(:)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   water_temperature_k(:)
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    real(kind=JPRD) :: &
+    real(kind = JPRD) :: &
     &   actual_heat_j, tolerance_j
 
     actual_heat_j = total_sensible_heat_j(water_temperature_k, liquid_volume_m3)
@@ -245,11 +245,11 @@ end subroutine assert_heat_conserved
 
 
 subroutine assert_close(actual_value, expected_value, label)
-    real(kind=JPRB), intent(in) :: &
+    real(kind = JPRB), intent(in) :: &
     &   actual_value, expected_value
-    character(len=*), intent(in) :: &
+    character(len = *), intent(in) :: &
     &   label
-    real(kind=JPRB) :: &
+    real(kind = JPRB) :: &
     &   tolerance
 
     tolerance = max(1.0e-12_JPRB, 8.0_JPRB*epsilon(1.0_JPRB)) * max(1.0_JPRB, abs(expected_value))
