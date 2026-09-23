@@ -1,5 +1,5 @@
 program test_heatlink_log
-    use heatlink_config_mod, only: CHEAT_LOG, LHEAT_DIAG
+    use heatlink_config_mod, only: HEAT_LOG_FILE, LHEAT_DIAG
     use heatlink_log_mod, only: HEAT_LOG_UNIT, init_heatlink_log, fin_heatlink_log, write_heatlink_time
     implicit none
     integer :: unit, ios, found ! [-] Reader unit, I/O status and count of expected calendar markers.
@@ -8,26 +8,26 @@ program test_heatlink_log
 
     call get_command_argument(1, scenario)
     if (trim(scenario) == 'collision') then
-        CHEAT_LOG = 'test_heatlink_log_collision.tmp'
-        open(newunit=unit, file=trim(CHEAT_LOG), status='replace')
+        HEAT_LOG_FILE = 'test_heatlink_log_collision.tmp'
+        open(newunit=unit, file=trim(HEAT_LOG_FILE), status='replace')
         write(unit, '(a)') 'CaMa log must be preserved'
         flush(unit)
         call init_heatlink_log(unit)
         error stop 'Collision was accepted'
     else if (trim(scenario) == 'bad-path') then
-        CHEAT_LOG = 'missing-heatlink-directory/test.log'
+        HEAT_LOG_FILE = 'missing-heatlink-directory/test.log'
         call init_heatlink_log(6)
         error stop 'Inaccessible path was accepted'
     endif
 
-    CHEAT_LOG = 'test_heatlink_log.tmp'
+    HEAT_LOG_FILE = 'test_heatlink_log.tmp'
     LHEAT_DIAG = .TRUE.
     call init_heatlink_log(6)
     call write_heatlink_time('BEGIN', 10, 20001231, 2330)
     call write_heatlink_time('END', 11, 20010101, 0)
     write(HEAT_LOG_UNIT, '(a)') 'sentinel heat diagnostic'
     call fin_heatlink_log()
-    open(newunit=unit, file=trim(CHEAT_LOG), status='old', action='read')
+    open(newunit=unit, file=trim(HEAT_LOG_FILE), status='old', action='read')
     found = 0
     do
         read(unit, '(a)', iostat=ios) line
@@ -42,7 +42,7 @@ program test_heatlink_log
     LHEAT_DIAG = .FALSE.
     call init_heatlink_log(6)
     call fin_heatlink_log()
-    open(newunit=unit, file=trim(CHEAT_LOG), status='old', action='read')
+    open(newunit=unit, file=trim(HEAT_LOG_FILE), status='old', action='read')
     read(unit, '(a)') line
     if (trim(line) /= 'HEAT-LINK detailed monitoring: LHEAT_DIAG = F') error stop 'Minimal header is incorrect'
     close(unit, status='delete')

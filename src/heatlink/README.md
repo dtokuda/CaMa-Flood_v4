@@ -18,11 +18,11 @@ In detailed mode, record the difference between expected energy and the energy r
 &NHEATLINK
     LICE = .TRUE.
     LHEAT_DIAG = .FALSE.
-    CHEAT_LOG = 'HEAT-LINK.log'
+    HEAT_LOG_FILE = 'HEAT-LINK.log'
 /
 ```
 
-`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `CHEAT_LOG` defaults to `HEAT-LINK.log` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
+`LHEAT_DIAG` defaults to `.FALSE.`. Set it to `.TRUE.` for the full heat-budget audit, including every internal advection step. `HEAT_LOG_FILE` defaults to `HEAT-LINK.log` in the run directory; a custom relative or absolute path is accepted. Its parent directory must exist. Each run replaces this log. An empty path, an inaccessible path or an already-open file (including the CaMa log) is an error. With `LHEATLINK = .FALSE.`, no heat log is opened.
 
 | Check or operation | Always active | Additional work with `LHEAT_DIAG = .TRUE.` |
 |---|---|---|
@@ -65,7 +65,7 @@ Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_sc
 
 ## Reading the log
 
-Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Existing source/procedure identifiers are retained in lifecycle and error messages. Each diagnostic physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
+Heatlink-specific messages go to `HEAT_LOG_FILE` (normally `HEAT-LINK.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Existing source/procedure identifiers are retained in lifecycle and error messages. Each diagnostic physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
 
 The log header defines both temperature groups, whether detailed monitoring is enabled or disabled. `wet water temperature` covers cells with end-of-update liquid-water volume greater than `STO_IGNORE`; `dry water temperature` covers cells at or below that threshold. Volumes are in m³. Dry or near-dry cells retain a remembered temperature; it is not a heat source. Ice volume is not used for this classification. In both monitoring modes, each nonempty group reports its minimum and maximum temperature and both one-based river-vector cell indices after every outer update. Ties use the first cell in vector order.
 

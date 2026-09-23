@@ -1,6 +1,6 @@
 module heatlink_log_mod
     use, intrinsic :: iso_fortran_env, only: output_unit
-    use heatlink_config_mod, only: CHEAT_LOG, LHEAT_DIAG
+    use heatlink_config_mod, only: HEAT_LOG_FILE, LHEAT_DIAG
     implicit none
     private
     public :: HEAT_LOG_UNIT, init_heatlink_log, fin_heatlink_log, write_heatlink_time
@@ -16,19 +16,19 @@ subroutine init_heatlink_log(cama_log_unit)
     character(len=512) :: message ! [-] Runtime I/O error description.
 
     if (log_open) call fin_heatlink_log()
-    inquire(file=trim(CHEAT_LOG), opened=already_open, iostat=ios)
-    if (ios /= 0 .or. already_open .or. len_trim(CHEAT_LOG) == 0) then
-        write(cama_log_unit, '(a,1x,a)') 'ERROR: CHEAT_LOG is empty, inaccessible or already open:', trim(CHEAT_LOG)
+    inquire(file=trim(HEAT_LOG_FILE), opened=already_open, iostat=ios)
+    if (ios /= 0 .or. already_open .or. len_trim(HEAT_LOG_FILE) == 0) then
+        write(cama_log_unit, '(a,1x,a)') 'ERROR: HEAT_LOG_FILE is empty, inaccessible or already open:', trim(HEAT_LOG_FILE)
         error stop 1
     endif
-    open(newunit=HEAT_LOG_UNIT, file=trim(CHEAT_LOG), status='replace', action='write', &
+    open(newunit=HEAT_LOG_UNIT, file=trim(HEAT_LOG_FILE), status='replace', action='write', &
     &   iostat=ios, iomsg=message)
     if (ios /= 0) then
-        write(cama_log_unit, '(a,1x,a,2a)') 'ERROR: cannot open CHEAT_LOG:', trim(CHEAT_LOG), ': ', trim(message)
+        write(cama_log_unit, '(a,1x,a,2a)') 'ERROR: cannot open HEAT_LOG_FILE:', trim(HEAT_LOG_FILE), ': ', trim(message)
         error stop 1
     endif
     log_open = .TRUE.
-    write(cama_log_unit, '(a,1x,a)') 'HEAT-LINK log:', trim(CHEAT_LOG)
+    write(cama_log_unit, '(a,1x,a)') 'HEAT-LINK log:', trim(HEAT_LOG_FILE)
     write(HEAT_LOG_UNIT, '(a,l1)') 'HEAT-LINK detailed monitoring: LHEAT_DIAG = ', LHEAT_DIAG
     write(HEAT_LOG_UNIT, '(a)') 'Calendar times follow the CaMa model clock. Interval end/duration values are seconds from run start.'
     if (.not. LHEAT_DIAG) write(HEAT_LOG_UNIT, '(a)') &

@@ -2,5 +2,5 @@
 LICE = .TRUE.
 NNEWTON_MAX_ICE = 7
 LHEAT_DIAG = .TRUE.
-CHEAT_LOG = 'custom_heat.log'
+HEAT_LOG_FILE = 'custom_heat.log'
 /

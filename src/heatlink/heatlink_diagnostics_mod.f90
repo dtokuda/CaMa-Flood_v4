@@ -271,7 +271,7 @@ subroutine check_heatlink_temperature(wattmp, watsto)
     if (.not. all(ieee_is_finite(wattmp(:NSEQALL)))) then
         write(HEAT_LOG_UNIT, '(a)') 'ERROR: non-finite river water temperature.'
         flush(HEAT_LOG_UNIT)
-        error stop 'Non-finite river water temperature; see CHEAT_LOG.'
+        error stop 'Non-finite river water temperature; see HEAT_LOG_FILE.'
     endif
     write(HEAT_LOG_UNIT,'(a)') '[local heat budget]'
     wet = watsto(:NSEQALL) > real(STO_IGNORE, JPRB)
