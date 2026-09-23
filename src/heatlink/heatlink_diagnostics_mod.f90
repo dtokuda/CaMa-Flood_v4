@@ -27,11 +27,11 @@ module heatlink_diagnostics_mod
     type(HeatStepLedger), save :: process_ledger ! [J] Heat exchanges during one process interval.
     type(HeatStepLedger), save :: hour_ledger ! [J] Heat exchanges during one outer update.
     type(HeatStepStats), save :: step_stats(3) ! [mixed] Advection/local/hour extrema; field units are defined by HeatStepStats.
-    logical, save :: hour_monitor_active = .false. ! [-] Whether an outer-update snapshot is active.
-    real(kind = JPRD), save :: monitor_seconds = 0.0_JPRD ! [s] Elapsed time accumulated from internal steps.
-    real(kind = JPRD), save :: hour_start_seconds = 0.0_JPRD ! [s] Elapsed time at the current outer-update start.
-    real(kind = JPRD), save :: advection_dt_seconds = 0.0_JPRD ! [s] Duration of the current advection interval.
-    character(len = 24), parameter :: residual_reasons(5) = [character(len = 24) :: & ! [-] Labels for the five unapplied-heat causes.
+    logical, save :: hour_monitor_active = .FALSE. ! [-] Whether an outer-update snapshot is active.
+    real(kind=JPRD), save :: monitor_seconds = 0.0_JPRD ! [s] Elapsed time accumulated from internal steps.
+    real(kind=JPRD), save :: hour_start_seconds = 0.0_JPRD ! [s] Elapsed time at the current outer-update start.
+    real(kind=JPRD), save :: advection_dt_seconds = 0.0_JPRD ! [s] Duration of the current advection interval.
+    character(len=24), parameter :: residual_reasons(5) = [character(len=24) :: & ! [-] Labels for the five unapplied-heat causes.
     &   'dry holding', 'reconstruction', 'dry local update', 'ice handling', 'melting-point floor']
 contains
 
@@ -43,7 +43,7 @@ subroutine init_heatlink_diagnostics()
     step_stats = HeatStepStats()
     process_ledger = HeatStepLedger()
     hour_ledger = HeatStepLedger()
-    hour_monitor_active = .false.
+    hour_monitor_active = .FALSE.
     monitor_seconds = 0.0_JPRD
     hour_start_seconds = 0.0_JPRD
     write(HEAT_LOG_UNIT,'(a)') '[monitor definitions]'
@@ -59,10 +59,10 @@ end subroutine init_heatlink_diagnostics
 ! Independent state-versus-external-input audit, using canonical hydraulic storage.
 ! No diagnostic value is fed back into water, ice, temperature, or flow.
 function represented_domain_energy_j(wattmp, icevol, icevol_excess) result(energy_j)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
-    real(kind = JPRD) :: energy_j ! [J] Domain sensible heat plus melting-point ice latent energy.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRD) :: energy_j ! [J] Domain sensible heat plus melting-point ice latent energy.
     energy_j = real(CW, JPRD) * real(RW, JPRD) * sum( &
     &   (P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1)) * real(wattmp(:NSEQALL) - TMELT, JPRD))
     if (LICE) energy_j = energy_j - real(RI, JPRD) * real(HFUS, JPRD) * &
@@ -71,9 +71,9 @@ end function
 
 ! Use the same canonical storage and energy reference as the annual ledger.
 subroutine capture_monitor_state(state, wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     type(HeatStepState), intent(inout) :: state ! [m3,K] Read-only physical-state snapshot to capture.
     if (LICE) then
         call capture_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1), &
@@ -84,17 +84,17 @@ subroutine capture_monitor_state(state, wattmp, icevol, icevol_excess)
 end subroutine
 
 subroutine finish_monitor_state(state,ledger,index,stage,dt_seconds, wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     type(HeatStepState), intent(in) :: state ! [m3,K] Physical-state snapshot at interval start.
     type(HeatStepLedger), intent(in) :: ledger ! [J] Expected and unapplied heat during this interval.
     integer, intent(in) :: index ! [-] Stage index: advection, local, or outer update.
-    character(len = *), intent(in) :: stage ! [-] Stage label written to the diagnostic log.
-    real(kind = JPRD), intent(in) :: dt_seconds ! [s] Duration of the monitored interval.
-    real(kind = JPRD) :: delta_j ! [J] Domain energy change from cellwise state increments.
-    real(kind = JPRD) :: storage_j ! [J] Non-cancelling represented storage scale.
-    real(kind = JPRD) :: naive_delta_j ! [J] Energy change from subtracting domain totals, for comparison.
+    character(len=*), intent(in) :: stage ! [-] Stage label written to the diagnostic log.
+    real(kind=JPRD), intent(in) :: dt_seconds ! [s] Duration of the monitored interval.
+    real(kind=JPRD) :: delta_j ! [J] Domain energy change from cellwise state increments.
+    real(kind=JPRD) :: storage_j ! [J] Non-cancelling represented storage scale.
+    real(kind=JPRD) :: naive_delta_j ! [J] Energy change from subtracting domain totals, for comparison.
     if (LICE) then
         call measure_heat_step(state,P2RIVSTO(:NSEQALL,1)+P2FLDSTO(:NSEQALL,1), &
         &   real(wattmp(:NSEQALL)-TMELT,JPRD),real(CW,JPRD)*real(RW,JPRD),real(RI,JPRD)*real(HFUS,JPRD), &
@@ -109,24 +109,24 @@ subroutine finish_monitor_state(state,ledger,index,stage,dt_seconds, wattmp, ice
 end subroutine
 
 subroutine add_process_to_hour()
-    real(kind = JPRD) :: q(4) ! [J] Compensated net, absolute exchange, signed and absolute unapplied heat.
+    real(kind=JPRD) :: q(4) ! [J] Compensated net, absolute exchange, signed and absolute unapplied heat.
     q = process_ledger%value+process_ledger%correction
     call add_step_heat(hour_ledger,q(1),q(2),q(3),q(4))
 end subroutine
 
 subroutine begin_heat_conservation(wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     if (conservation_stats%initialized) return
     conservation_stats%initial_j = represented_domain_energy_j(wattmp, icevol, icevol_excess)
-    conservation_stats%initialized = .true.
+    conservation_stats%initialized = .TRUE.
 end subroutine
 
 subroutine begin_advection_diagnostics(wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     if (.not. LHEAT_DIAG) return
     call begin_heat_conservation(wattmp, icevol, icevol_excess)
     call capture_monitor_state(process_start, wattmp, icevol, icevol_excess)
@@ -135,22 +135,22 @@ subroutine begin_advection_diagnostics(wattmp, icevol, icevol_excess)
         call capture_monitor_state(hour_start, wattmp, icevol, icevol_excess)
         hour_start_seconds = monitor_seconds
         hour_ledger = HeatStepLedger()
-        hour_monitor_active = .true.
+        hour_monitor_active = .TRUE.
     endif
 end subroutine begin_advection_diagnostics
 
 subroutine record_advection_diagnostics(dt_seconds, boundary_heat_j, boundary_absolute_j, ice_export_m3, &
 &   advection_unapplied_sensible_heat_j, advection_throughput_j, &
 &   advection_domain_heat_budget_error_j, advection_domain_combined_energy_budget_error_j)
-    real(kind = JPRB), intent(in) :: dt_seconds ! [s] Duration of this hydraulic transport step.
-    real(kind = JPRD), intent(in) :: boundary_heat_j ! [J] Net sensible heat entering across external boundaries.
-    real(kind = JPRD), intent(in) :: boundary_absolute_j ! [J] Absolute sensible-heat exchange across external boundaries.
-    real(kind = JPRD), intent(in) :: ice_export_m3 ! [m3] Exported ice volume; zero when ice is disabled.
-    real(kind = JPRD), intent(in) :: advection_unapplied_sensible_heat_j(:) ! [J] Signed cellwise unapplied transport heat.
-    real(kind = JPRD), intent(in) :: advection_throughput_j(:) ! [J] Cellwise absolute heat-transport scale.
-    real(kind = JPRD), intent(in) :: advection_domain_heat_budget_error_j ! [J] Domain water-transport closure error.
-    real(kind = JPRD), intent(in) :: advection_domain_combined_energy_budget_error_j ! [J] Domain water-plus-ice closure error.
-    real(kind = JPRD) :: volumetric_ice_latent_energy_j_m3 ! [J m-3] Magnitude of melting-point ice latent energy.
+    real(kind=JPRB), intent(in) :: dt_seconds ! [s] Duration of this hydraulic transport step.
+    real(kind=JPRD), intent(in) :: boundary_heat_j ! [J] Net sensible heat entering across external boundaries.
+    real(kind=JPRD), intent(in) :: boundary_absolute_j ! [J] Absolute sensible-heat exchange across external boundaries.
+    real(kind=JPRD), intent(in) :: ice_export_m3 ! [m3] Exported ice volume; zero when ice is disabled.
+    real(kind=JPRD), intent(in) :: advection_unapplied_sensible_heat_j(:) ! [J] Signed cellwise unapplied transport heat.
+    real(kind=JPRD), intent(in) :: advection_throughput_j(:) ! [J] Cellwise absolute heat-transport scale.
+    real(kind=JPRD), intent(in) :: advection_domain_heat_budget_error_j ! [J] Domain water-transport closure error.
+    real(kind=JPRD), intent(in) :: advection_domain_combined_energy_budget_error_j ! [J] Domain water-plus-ice closure error.
+    real(kind=JPRD) :: volumetric_ice_latent_energy_j_m3 ! [J m-3] Magnitude of melting-point ice latent energy.
 
     if (.not. LHEAT_DIAG) return
     advection_dt_seconds = real(dt_seconds,JPRD)
@@ -179,9 +179,9 @@ subroutine record_advection_diagnostics(dt_seconds, boundary_heat_j, boundary_ab
 end subroutine record_advection_diagnostics
 
 subroutine finish_advection_diagnostics(wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     if (.not. LHEAT_DIAG) return
     monitor_seconds = monitor_seconds + advection_dt_seconds
     call finish_monitor_state(process_start,process_ledger,1,'advection',advection_dt_seconds, wattmp, icevol, icevol_excess)
@@ -189,9 +189,9 @@ subroutine finish_advection_diagnostics(wattmp, icevol, icevol_excess)
 end subroutine finish_advection_diagnostics
 
 subroutine begin_local_diagnostics(wattmp, icevol, icevol_excess)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
     if (.not. LHEAT_DIAG) return
     call begin_heat_conservation(wattmp, icevol, icevol_excess)
     call capture_monitor_state(process_start, wattmp, icevol, icevol_excess)
@@ -201,16 +201,16 @@ end subroutine begin_local_diagnostics
 subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
 &   local_added_energy_j, local_dry_energy_j, local_throughput_j, floor_energy_j, &
 &   phase_unapplied_energy, phase_energy_budget_error)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
-    real(kind = JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
-    real(kind = JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
-    real(kind = JPRB), intent(in) :: dt ! [s] Duration of the local heat update.
-    real(kind = JPRB), intent(in) :: local_added_energy_j(:) ! [J] Expected net local heat input per cell.
-    real(kind = JPRB), intent(in) :: local_dry_energy_j(:) ! [J] Signed local heat skipped by dry handling.
-    real(kind = JPRB), intent(in) :: local_throughput_j(:) ! [J] Absolute local heat-input scale per cell.
-    real(kind = JPRB), intent(in) :: floor_energy_j(:) ! [J] Signed heat omitted by the no-ice melting-point floor.
-    real(kind = JPRB), allocatable, intent(in) :: phase_unapplied_energy(:) ! [J] Signed heat unapplied by phase handling; ice only.
-    real(kind = JPRB), allocatable, intent(in) :: phase_energy_budget_error(:) ! [J] Local phase-change closure error; ice only.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] Current liquid-water temperature.
+    real(kind=JPRB), allocatable, intent(in) :: icevol(:) ! [m3] Mobile ice; unallocated when LICE is false.
+    real(kind=JPRB), allocatable, intent(in) :: icevol_excess(:) ! [m3] Immobile ice; unallocated when LICE is false.
+    real(kind=JPRB), intent(in) :: dt ! [s] Duration of the local heat update.
+    real(kind=JPRB), intent(in) :: local_added_energy_j(:) ! [J] Expected net local heat input per cell.
+    real(kind=JPRB), intent(in) :: local_dry_energy_j(:) ! [J] Signed local heat skipped by dry handling.
+    real(kind=JPRB), intent(in) :: local_throughput_j(:) ! [J] Absolute local heat-input scale per cell.
+    real(kind=JPRB), intent(in) :: floor_energy_j(:) ! [J] Signed heat omitted by the no-ice melting-point floor.
+    real(kind=JPRB), allocatable, intent(in) :: phase_unapplied_energy(:) ! [J] Signed heat unapplied by phase handling; ice only.
+    real(kind=JPRB), allocatable, intent(in) :: phase_energy_budget_error(:) ! [J] Local phase-change closure error; ice only.
 
 
     if (.not. LHEAT_DIAG) return
@@ -241,7 +241,7 @@ subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
     call add_process_to_hour()
     if (hour_monitor_active) then
         call finish_monitor_state(hour_start,hour_ledger,3,'hour',monitor_seconds-hour_start_seconds, wattmp, icevol, icevol_excess)
-        hour_monitor_active = .false.
+        hour_monitor_active = .FALSE.
     endif
     call record_heat_residual(residual_stats(3), real(local_dry_energy_j(:NSEQALL), JPRD), &
     &   real(local_throughput_j(:NSEQALL), JPRD))
@@ -262,9 +262,10 @@ subroutine finish_local_diagnostics(dt, wattmp, icevol, icevol_excess, &
 end subroutine finish_local_diagnostics
 
 subroutine check_heatlink_temperature(wattmp, watsto)
-    real(kind = JPRB), intent(in) :: wattmp(:) ! [K] End-of-update liquid-water temperature.
-    real(kind = JPRB), intent(in) :: watsto(:) ! [m3] End-of-update liquid-water volume.
-    integer(kind = JPIM) :: max_cell(1) ! [-] One-based cell index of the maximum temperature.
+    real(kind=JPRB), intent(in) :: wattmp(:) ! [K] End-of-update liquid-water temperature.
+    real(kind=JPRB), intent(in) :: watsto(:) ! [m3] End-of-update liquid-water volume.
+    integer(kind=JPIM) :: min_cell(1) ! [-] One-based cell index of the minimum temperature.
+    integer(kind=JPIM) :: max_cell(1) ! [-] One-based cell index of the maximum temperature.
     logical :: wet(NSEQALL) ! [-] Cells with liquid volume above STO_IGNORE.
 
     if (.not. all(ieee_is_finite(wattmp(:NSEQALL)))) then
@@ -274,20 +275,24 @@ subroutine check_heatlink_temperature(wattmp, watsto)
     endif
     write(HEAT_LOG_UNIT,'(a)') '[local heat budget]'
     wet = watsto(:NSEQALL) > real(STO_IGNORE, JPRB)
-    max_cell = maxloc(wattmp(:NSEQALL), mask = wet)
     if (any(wet)) then
+        min_cell = minloc(wattmp(:NSEQALL), mask=wet)
+    max_cell = maxloc(wattmp(:NSEQALL), mask=wet)
         write(HEAT_LOG_UNIT,'(a)') '  wet water temperature:'
-        write(HEAT_LOG_UNIT,'(a,i0,a,i0)') '    cells = ',count(wet),'; maximum cell = ',max_cell(1)
+        write(HEAT_LOG_UNIT,'(a,i0,a,i0,a,i0)') '    cells = ',count(wet), &
+        &   '; minimum cell = ',min_cell(1),'; maximum cell = ',max_cell(1)
         write(HEAT_LOG_UNIT,'(a,es24.16,a,es24.16)') '    temperature [K]: minimum = ', &
-        &   minval(wattmp(:NSEQALL),mask = wet),'; maximum = ',maxval(wattmp(:NSEQALL),mask = wet)
+        &   wattmp(min_cell(1)),'; maximum = ',wattmp(max_cell(1))
         write(HEAT_LOG_UNIT,'(a,es24.16)') '    volume at maximum [m3] = ',watsto(max_cell(1))
     endif
-    max_cell = maxloc(wattmp(:NSEQALL), mask = .not. wet)
     if (any(.not. wet)) then
+        min_cell = minloc(wattmp(:NSEQALL), mask=.not. wet)
+    max_cell = maxloc(wattmp(:NSEQALL), mask=.not. wet)
         write(HEAT_LOG_UNIT,'(a)') '  dry water temperature:'
-        write(HEAT_LOG_UNIT,'(a,i0,a,i0)') '    cells = ',count(.not. wet),'; maximum cell = ',max_cell(1)
+        write(HEAT_LOG_UNIT,'(a,i0,a,i0,a,i0)') '    cells = ',count(.not. wet), &
+        &   '; minimum cell = ',min_cell(1),'; maximum cell = ',max_cell(1)
         write(HEAT_LOG_UNIT,'(a,es24.16,a,es24.16)') '    temperature [K]: minimum = ', &
-        &   minval(wattmp(:NSEQALL),mask = .not. wet),'; maximum = ',maxval(wattmp(:NSEQALL),mask = .not. wet)
+        &   wattmp(min_cell(1)),'; maximum = ',wattmp(max_cell(1))
         write(HEAT_LOG_UNIT,'(a,es24.16)') '    volume at maximum [m3] = ',watsto(max_cell(1))
     endif
     if (maxval(wattmp(:NSEQALL)) > 350.0_JPRB) &

@@ -28,7 +28,7 @@ In detailed mode, record the difference between expected energy and the energy r
 |---|---|---|
 | Dry-state handling, mixing reconstruction and bounded export limiters | All physical safeguards | No change to physical state |
 | Existing invalid-input and phase/storage consistency checks | Errors remain fatal | No change |
-| End-of-outer-update water temperature | Finite-value check; wet/dry minima, maxima, maximum cell index and volume; warning above 350 K | Same checks |
+| End-of-outer-update water temperature | Finite-value check; wet/dry minima, maxima, both cell indices and volume at the maximum; warning above 350 K | Same checks |
 | Calendar timestamps and heatlink errors | Separate heat log | Same log |
 | Interval heat closure and independent extrema | Not evaluated | Advection, local and combined outer update: ΔE, Q, U, residuals, ratios and extrema |
 | Cause-specific unapplied heat and cumulative closure | Not aggregated | Cause-specific totals, process closure and a cumulative domain ledger |
@@ -65,9 +65,9 @@ Record `raw/S`, `adjusted/S`, absolute unapplied heat/S and `adjusted/storage_sc
 
 ## Reading the log
 
-Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Each physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
+Heatlink-specific messages go to `CHEAT_LOG` (normally `HEAT-LINK.log`), while CaMa and shared input/output messages remain in `log_CaMa.txt`. Existing source/procedure identifiers are retained in lifecycle and error messages. Each diagnostic physical process has a bracketed heading. Results are indented by two spaces per level, with labels and units on each line. Machine record prefixes are no longer emitted.
 
-The log header defines both temperature groups, whether detailed monitoring is enabled or disabled. `wet water temperature` covers cells with end-of-update liquid-water volume greater than `STO_IGNORE`; `dry water temperature` covers cells at or below that threshold. Volumes are in m³. Dry or near-dry cells retain a remembered temperature; it is not a heat source. Ice volume is not used for this classification.
+The log header defines both temperature groups, whether detailed monitoring is enabled or disabled. `wet water temperature` covers cells with end-of-update liquid-water volume greater than `STO_IGNORE`; `dry water temperature` covers cells at or below that threshold. Volumes are in m³. Dry or near-dry cells retain a remembered temperature; it is not a heat source. Ice volume is not used for this classification. In both monitoring modes, each nonempty group reports its minimum and maximum temperature and both one-based river-vector cell indices after every outer update. Ties use the first cell in vector order.
 
 | Heading or item | Meaning |
 |---|---|
@@ -112,47 +112,3 @@ Large domains are split into fixed 4,096-cell blocks. OpenMP evaluates independe
 The auxiliary large-total comparison is computed during the same pass as the cellwise increment, eliminating additional domain scans. Its uncompensated domain sums now use block grouping, so its roundoff can differ from the earlier serial comparison. Cause-specific cumulative sums also use fixed blocks and retain unique affected-cell counts incrementally. Those supporting totals may differ in roundoff; they remain separate from the primary compensated interval audit.
 
 Cellwise transport diagnostics are filled in the existing parallel reconstruction loop. No diagnostic value changes the physical update. Every internal advection interval, local update, combined interval and independent extremum is still monitored in detailed mode; the speedup does not sample or skip intervals.
-
-## Measured monitoring cost
-
-A matched short-run benchmark on Apple M4 Pro, GNU Fortran 13.2.0, double precision, `-O3`, NetCDF and eight OpenMP threads (`OMP_WAIT_POLICY=PASSIVE`, `OMP_DYNAMIC=FALSE`) used MIROC6 forcing for 1–3 January 2000. PR2, the previous PR3 with detail ON, and the new OFF/ON modes each had one warm-up per ice setting, followed by three serial repetitions in rotating order. Median wall time includes initialization and I/O.
-
-| LICE | PR2 [s] | Previous ON [s] | New OFF [s] | New ON [s] | New ON vs PR2 | ON speedup |
-|---|---:|---:|---:|---:|---:|---:|
-| TRUE | 18.551 | 24.864 | 17.832 | 22.515 | +21.4% | 9.4% |
-| FALSE | 9.576 | 13.994 | 9.311 | 12.760 | +33.2% | 8.8% |
-
-The extra cost relative to PR2 fell from 34.0% to 21.4% with ice and from 46.1% to 33.2% without ice. Detailed ON is still more expensive; OFF remains the default. OFF was 3.9%/2.8% faster than PR2 in these comparisons, partly because it also omits the pre-existing budget summaries. These short runs do not predict annual overhead.
-
-Across all repetitions, output/restart binaries are bit-identical between new OFF, new ON and the preceding PR3. All 792 advection intervals, 72 local updates, 72 combined intervals and 48 extrema records per detailed run were verified. The primary interval fields (elapsed time/duration, ΔE, Q, S, U, absolute U, raw/adjusted residual, storage scale and all ratios) match the previous diagnostic values exactly in these cases. Event counts, affected-cell counts and cellwise maxima also match. This is a measured result, not a guarantee that regrouped floating-point reductions always match an earlier serial order.
-
-The auxiliary large-total comparison and cumulative cause sums differ in rounding, as expected from their changed summation order. They do not alter the primary interval audit or physical state. The readable log uses about 1.02–1.08 MB with detail ON and 41 kB with detail OFF over these three days. The log format is intentionally labelled rather than compact positional records.
-
-## Regression tests
-
-Use the existing `adm/Mkinclude` or make command-line settings for the compiler and NetCDF environment. Tests do not require personal configuration paths or real forcing data. Example build commands with heatlink enabled follow; use the same make-variable overrides for each invocation.
-
-```sh
-make -r -j1 -C src all EXT_LIBS='common mod phys io heatlink' DHEATLINK=-Dheatlink
-make -r -j1 -C src/heatlink test DHEATLINK=-Dheatlink
-make -r -j1 -C src/phys test DHEATLINK=-Dheatlink
-```
-
-The existing `test` targets build executables; run them separately from their corresponding directories. In particular, `test_heatlink_config` reads relative fixture paths from `src/heatlink`.
-
-```sh
-(cd src/heatlink && ./test_heatlink_config)
-(cd src/heatlink && ./test_heatlink_log)
-python3 src/heatlink/test/test_heatlink_log_errors.py
-(cd src/heatlink && ./test_temperature_dry_state)
-(cd src/heatlink && ./test_thermo_dry_exchange)
-(cd src/heatlink && ./test_transport_limiter)
-(cd src/heatlink && ./test_heat_step_monitor)
-(cd src/phys && ./test_heat_budget)
-```
-
-Configuration/log tests also check default/reset behavior, custom filenames, file ownership, invalid settings, already-open/inaccessible paths and calendar marker formatting across a year boundary. The diagnostic tests exercise cancellation across block boundaries, a partial final block, repeated affected-cell events, maximum-value ties and 1–8 OpenMP threads. The step monitor also passes without OpenMP. The added numerical tests cover small reproductions of observed anomalous states, values below/at/above the dry threshold, drying, rewetting, refreezing, melting, signed unapplied heat, tiny-flux overflow, boundary heat exchange, cancellation-prone synthetic states, invalid ratios and independent extrema. Run them alongside the existing water/ice transport, boundary and phase-change tests. `test_river_water_advection_cold_inflow` is expected to stop because liquid inflow is below the melting point.
-
-When switching precision, clean and rebuild all dependencies so that objects and modules with different kinds are not mixed. `DSINGLE=-DSinglePrec_CMF` selects single precision; `DSINGLE=` selects double precision. The existing single-precision ice-surface Newton convergence test failure is a separate issue; this stabilization does not change its convergence criterion.
-
-A three-day single-precision integration with ice disabled also produces bit-identical output with detail OFF/ON. With ice enabled, both modes stop at the first local update on the existing ice-surface Newton nonconvergence (maximum residual about `1.1292e-3 W m-2`, tolerance `1e-6 W m-2`); the preceding PR3 executable reproduces the same 56,429 nonconverged cells. This monitoring change does not alter that solver or its tolerance.

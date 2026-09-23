@@ -20,10 +20,10 @@ program test_river_water_advection_boundaries
 contains
 
 subroutine test_runoff_and_upstream_inflow_to_dry_cell()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3), &
     &   runoff_flow_m3s(3), upstream_inflow_m3s(3), inflow_temperature_k(3)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), expected_heat_j, &
     &   heat_budget_error_j(3), water_budget_error_m3(3), &
     &   unapplied_sensible_heat_j(3), domain_heat_budget_error_j
@@ -43,13 +43,13 @@ subroutine test_runoff_and_upstream_inflow_to_dry_cell()
     call advect_river_water_sensible_heat( &
     &   water_temperature_k, liquid_volume_before_m3, liquid_volume_after_m3, &
     &   normal_flow_m3s, 1.0_JPRB, &
-    &   runoff_flow_m3s = runoff_flow_m3s, &
-    &   upstream_inflow_m3s = upstream_inflow_m3s, &
-    &   inflow_temperature_k = inflow_temperature_k, &
-    &   heat_budget_error_j = heat_budget_error_j, &
-    &   water_budget_error_m3 = water_budget_error_m3, &
-    &   unapplied_sensible_heat_j = unapplied_sensible_heat_j, &
-    &   domain_heat_budget_error_j = domain_heat_budget_error_j)
+    &   runoff_flow_m3s=runoff_flow_m3s, &
+    &   upstream_inflow_m3s=upstream_inflow_m3s, &
+    &   inflow_temperature_k=inflow_temperature_k, &
+    &   heat_budget_error_j=heat_budget_error_j, &
+    &   water_budget_error_m3=water_budget_error_m3, &
+    &   unapplied_sensible_heat_j=unapplied_sensible_heat_j, &
+    &   domain_heat_budget_error_j=domain_heat_budget_error_j)
 
     call assert_close(water_temperature_k(1), TMELT + 6.0_JPRB, &
     &   'runoff and upstream inflow temperature in dry cell [K]')
@@ -67,9 +67,9 @@ end subroutine test_runoff_and_upstream_inflow_to_dry_cell
 
 
 subroutine test_river_mouth_outflow_and_reverse_flow()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), &
     &   initial_heat_j, expected_heat_j
 
@@ -113,9 +113,9 @@ end subroutine test_river_mouth_outflow_and_reverse_flow
 
 
 subroutine test_bifurcation_forward_and_reverse_flow()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3), bifurcation_flow_m3s(1)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology(1_JPIM)
@@ -132,7 +132,7 @@ subroutine test_bifurcation_forward_and_reverse_flow()
     call advect_river_water_sensible_heat( &
     &   water_temperature_k, liquid_volume_before_m3, liquid_volume_after_m3, &
     &   normal_flow_m3s, 1.0_JPRB, &
-    &   bifurcation_flow_m3s = bifurcation_flow_m3s)
+    &   bifurcation_flow_m3s=bifurcation_flow_m3s)
 
     call assert_close(water_temperature_k(1), TMELT + 9.0_JPRB, &
     &   'forward bifurcation source temperature [K]')
@@ -150,7 +150,7 @@ subroutine test_bifurcation_forward_and_reverse_flow()
     call advect_river_water_sensible_heat( &
     &   water_temperature_k, liquid_volume_before_m3, liquid_volume_after_m3, &
     &   normal_flow_m3s, 1.0_JPRB, &
-    &   bifurcation_flow_m3s = bifurcation_flow_m3s)
+    &   bifurcation_flow_m3s=bifurcation_flow_m3s)
 
     call assert_close(water_temperature_k(1), TMELT + 1.5_JPRB, &
     &   'reverse bifurcation receiving temperature [K]')
@@ -162,9 +162,9 @@ end subroutine test_bifurcation_forward_and_reverse_flow
 
 
 subroutine test_bifurcation_and_normal_outflow_share_limiter()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_temperature_k(3), normal_flow_m3s(3), bifurcation_flow_m3s(1)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   liquid_volume_before_m3(3), liquid_volume_after_m3(3), initial_heat_j
 
     call set_three_cell_topology(1_JPIM)
@@ -181,7 +181,7 @@ subroutine test_bifurcation_and_normal_outflow_share_limiter()
     call advect_river_water_sensible_heat( &
     &   water_temperature_k, liquid_volume_before_m3, liquid_volume_after_m3, &
     &   normal_flow_m3s, 1.0_JPRB, &
-    &   bifurcation_flow_m3s = bifurcation_flow_m3s)
+    &   bifurcation_flow_m3s=bifurcation_flow_m3s)
 
     call assert_close(water_temperature_k(1), TMELT + 12.0_JPRB, &
     &   'shared-limiter source retains previous dry temperature [K]')
@@ -195,7 +195,7 @@ end subroutine test_bifurcation_and_normal_outflow_share_limiter
 
 
 subroutine test_cold_liquid_inflow_is_rejected_by_contract()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   inflow_temperature_k(3)
 
     inflow_temperature_k(:) = [TMELT, nearest(TMELT, -1.0_JPRB), TMELT + 1.0_JPRB]
@@ -208,7 +208,7 @@ end subroutine test_cold_liquid_inflow_is_rejected_by_contract
 
 
 subroutine set_three_cell_topology(number_of_bifurcations)
-    integer(kind = JPIM), intent(in) :: &
+    integer(kind=JPIM), intent(in) :: &
     &   number_of_bifurcations
 
     if (allocated(I1NEXT)) deallocate(I1NEXT)
@@ -223,37 +223,37 @@ end subroutine set_three_cell_topology
 
 
 pure function volumetric_heat_capacity() result(heat_capacity_j_m3_k)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   heat_capacity_j_m3_k
 
-    heat_capacity_j_m3_k = real(RW, kind = JPRD) * real(CW, kind = JPRD)
+    heat_capacity_j_m3_k = real(RW, kind=JPRD) * real(CW, kind=JPRD)
 end function volumetric_heat_capacity
 
 
 function total_sensible_heat_j( &
     &   water_temperature_k, liquid_volume_m3) result(sensible_heat_j)
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   water_temperature_k(:)
-    real(kind = JPRD), intent(in) :: &
+    real(kind=JPRD), intent(in) :: &
     &   liquid_volume_m3(:)
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   sensible_heat_j
 
     sensible_heat_j = volumetric_heat_capacity() * sum( &
     &   liquid_volume_m3(:) * real( &
-    &   water_temperature_k(:) - TMELT, kind = JPRD))
+    &   water_temperature_k(:) - TMELT, kind=JPRD))
 end function total_sensible_heat_j
 
 
 subroutine assert_heat( &
     &   expected_heat_j, water_temperature_k, liquid_volume_m3, label)
-    real(kind = JPRD), intent(in) :: &
+    real(kind=JPRD), intent(in) :: &
     &   expected_heat_j, liquid_volume_m3(:)
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   water_temperature_k(:)
-    character(len = *), intent(in) :: &
+    character(len=*), intent(in) :: &
     &   label
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   actual_heat_j, tolerance_j
 
     actual_heat_j = total_sensible_heat_j(water_temperature_k, liquid_volume_m3)
@@ -270,11 +270,11 @@ end subroutine assert_heat
 
 
 subroutine assert_close(actual_value, expected_value, label)
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   actual_value, expected_value
-    character(len = *), intent(in) :: &
+    character(len=*), intent(in) :: &
     &   label
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   tolerance
 
     tolerance = max(1.0e-12_JPRB, 8.0_JPRB*epsilon(1.0_JPRB)) * max(1.0_JPRB, abs(expected_value))
@@ -289,7 +289,7 @@ end subroutine assert_close
 subroutine assert_true(condition, label)
     logical, intent(in) :: &
     &   condition
-    character(len = *), intent(in) :: &
+    character(len=*), intent(in) :: &
     &   label
 
     if (condition) return
@@ -299,11 +299,11 @@ end subroutine assert_true
 
 
 subroutine assert_small(actual_value, reference_scale, label)
-    real(kind = JPRD), intent(in) :: &
+    real(kind=JPRD), intent(in) :: &
     &   actual_value, reference_scale
-    character(len = *), intent(in) :: &
+    character(len=*), intent(in) :: &
     &   label
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   tolerance
 
     tolerance = 1.0e-12_JPRD * max(1.0_JPRD, abs(reference_scale))

@@ -6,28 +6,28 @@ module heatlink_log_mod
     public :: HEAT_LOG_UNIT, init_heatlink_log, fin_heatlink_log, write_heatlink_time
 
     integer, protected, save :: HEAT_LOG_UNIT = output_unit ! [-] Heatlink log unit; stdout for standalone kernels.
-    logical, save :: log_open = .false. ! [-] Whether this module owns an open log file.
+    logical, save :: log_open = .FALSE. ! [-] Whether this module owns an open log file.
 contains
 
 subroutine init_heatlink_log(cama_log_unit)
     integer, intent(in) :: cama_log_unit ! [-] Existing CaMa log unit for file-opening errors.
     integer :: ios ! [-] I/O status from opening the heat log.
     logical :: already_open ! [-] Whether the requested file is already in use (including the CaMa log).
-    character(len = 512) :: message ! [-] Runtime I/O error description.
+    character(len=512) :: message ! [-] Runtime I/O error description.
 
     if (log_open) call fin_heatlink_log()
-    inquire(file = trim(CHEAT_LOG), opened = already_open, iostat = ios)
+    inquire(file=trim(CHEAT_LOG), opened=already_open, iostat=ios)
     if (ios /= 0 .or. already_open .or. len_trim(CHEAT_LOG) == 0) then
         write(cama_log_unit, '(a,1x,a)') 'ERROR: CHEAT_LOG is empty, inaccessible or already open:', trim(CHEAT_LOG)
         error stop 1
     endif
-    open(newunit = HEAT_LOG_UNIT, file = trim(CHEAT_LOG), status = 'replace', action = 'write', &
-    &   iostat = ios, iomsg = message)
+    open(newunit=HEAT_LOG_UNIT, file=trim(CHEAT_LOG), status='replace', action='write', &
+    &   iostat=ios, iomsg=message)
     if (ios /= 0) then
         write(cama_log_unit, '(a,1x,a,2a)') 'ERROR: cannot open CHEAT_LOG:', trim(CHEAT_LOG), ': ', trim(message)
         error stop 1
     endif
-    log_open = .true.
+    log_open = .TRUE.
     write(cama_log_unit, '(a,1x,a)') 'HEAT-LINK log:', trim(CHEAT_LOG)
     write(HEAT_LOG_UNIT, '(a,l1)') 'HEAT-LINK detailed monitoring: LHEAT_DIAG = ', LHEAT_DIAG
     write(HEAT_LOG_UNIT, '(a)') 'Calendar times follow the CaMa model clock. Interval end/duration values are seconds from run start.'
@@ -39,11 +39,11 @@ subroutine init_heatlink_log(cama_log_unit)
 end subroutine init_heatlink_log
 
 subroutine write_heatlink_time(stage, step, date, hhmm)
-    character(len = *), intent(in) :: stage ! [-] INIT, BEGIN, LOCAL_END or END marker.
+    character(len=*), intent(in) :: stage ! [-] INIT, BEGIN, LOCAL_END or END marker.
     integer, intent(in) :: step ! [-] CaMa outer time-step counter at this marker.
     integer, intent(in) :: date ! [YYYYMMDD] Model calendar date from YOS_CMF_TIME.
     integer, intent(in) :: hhmm ! [HHMM] Model time from YOS_CMF_TIME; not wall-clock time.
-    character(len = 32) :: label ! [-] Human-readable position within the outer update.
+    character(len=32) :: label ! [-] Human-readable position within the outer update.
     select case(stage)
     case('INIT')
         label = 'initialization'
@@ -63,7 +63,7 @@ end subroutine write_heatlink_time
 
 subroutine fin_heatlink_log()
     if (log_open) close(HEAT_LOG_UNIT)
-    log_open = .false.
+    log_open = .FALSE.
     HEAT_LOG_UNIT = output_unit
 end subroutine fin_heatlink_log
 end module heatlink_log_mod

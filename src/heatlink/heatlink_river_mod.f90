@@ -60,25 +60,25 @@ module heatlink_river_mod
     &   calc_heatlink, &
     &   write_heatlink_restart, fin_heatlink_river_mod
 
-    real(kind = JPRB), allocatable, save :: local_added_energy_j(:) ! [J] Expected net local heat input per cell.
-    real(kind = JPRD), allocatable, save :: advection_throughput_j(:) ! [J] Cellwise absolute heat-transport scale.
-    real(kind = JPRB), allocatable, save :: local_dry_energy_j(:) ! [J] Signed local heat skipped by dry handling.
-    real(kind = JPRB), allocatable, save :: local_throughput_j(:) ! [J] Absolute local heat-input scale per cell.
-    real(kind = JPRB), allocatable, save :: floor_energy_j(:) ! [J] Signed heat omitted by the no-ice melting-point floor.
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: local_added_energy_j(:) ! [J] Expected net local heat input per cell.
+    real(kind=JPRD), allocatable, save :: advection_throughput_j(:) ! [J] Cellwise absolute heat-transport scale.
+    real(kind=JPRB), allocatable, save :: local_dry_energy_j(:) ! [J] Signed local heat skipped by dry handling.
+    real(kind=JPRB), allocatable, save :: local_throughput_j(:) ! [J] Absolute local heat-input scale per cell.
+    real(kind=JPRB), allocatable, save :: floor_energy_j(:) ! [J] Signed heat omitted by the no-ice melting-point floor.
+    real(kind=JPRB), allocatable, save :: &
     &   wattmp(:) ! [K] river water temperature
 
-    real(kind = JPRD), allocatable, save :: &
+    real(kind=JPRD), allocatable, save :: &
     &   advection_initial_liquid_volume_m3(:), & ! [m3] Liquid storage before the current hydraulic update.
     &   advection_heat_budget_error_j(:), & ! [J] Cell sensible-heat reconstruction error.
     &   advection_water_budget_error_m3(:), & ! [m3] Cell water-balance difference for supplied flows.
     &   advection_unapplied_sensible_heat_j(:), & ! [J] Heat not representable in zero liquid volume.
     &   advection_ice_budget_error_m3(:), & ! [m3] Expected minus represented mobile surface ice.
     &   advection_combined_energy_budget_error_j(:) ! [J] Water sensible plus ice latent-energy error.
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   advection_runoff_flow_m3s(:), & ! [m3 s-1] Runoff plus groundwater return flow.
     &   advection_upstream_flow_m3s(:) ! [m3 s-1] External upstream inflow or zero when disabled.
-    real(kind = JPRD), save :: &
+    real(kind=JPRD), save :: &
     &   advection_domain_heat_budget_error_j = 0.0_JPRD, & ! [J] Current internal-step domain closure error.
     &   advection_domain_ice_budget_error_m3 = 0.0_JPRD, & ! [m3] Current boundary-aware ice closure error.
     &   advection_domain_combined_energy_budget_error_j = 0.0_JPRD, & ! [J] Current water-plus-ice closure error.
@@ -95,7 +95,7 @@ module heatlink_river_mod
 
     ! River-ice state and diagnostics. Excess ice remains in the source cell,
     ! is reserved for local melting, and is excluded from future river transport.
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   icevol(:), &       ! [m3] Ice retained on the water surface and eligible for river transport.
     &   icevol_excess(:), & ! [m3] Immobile excess ice retained in the river grid cell.
     &   icearea(:), &      ! [m2] Horizontal area covered by river ice.
@@ -107,11 +107,11 @@ module heatlink_river_mod
     &   ice_upward_conductive_heat_flux(:), & ! [W m-2] Melting-point bulk-to-skin effective heat flux.
     &   ice_excess_surface_temperature(:) ! [K] Surface temperature of insulated immobile excess ice.
 
-    real(kind = JPRB), parameter :: &
+    real(kind=JPRB), parameter :: &
     &   RIVER_ICE_THICKNESS_MAX_M = 20.0_JPRB ! [m] Maximum ice thickness retained on the water surface.
 
     ! atmospheric forcing
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   lwdn(:), & ! [W m-2] downward longwave radiation
     &   psrf(:), & ! [hPa] surface pressure
     &   qair(:), & ! [kg kg-1] specific humidity
@@ -120,19 +120,19 @@ module heatlink_river_mod
     &   trof(:), & ! [K] Liquid-water temperature of runoff and external upstream inflow.
     &   wind(:)  ! [m s-1] wind speed
 
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   hflx_srf(:), & ! [W m-2] surface heat flux (+: into water)
     &   hflx_bdy(:), & ! [W m-2] body heat flux (+: into water)
     &   hflx_ice_srf(:), & ! [W m-2] atmospheric heat flux into water-surface ice.
     &   hflx_ice_excess_srf(:), & ! [W m-2] atmospheric heat flux into immobile excess ice.
     &   swdn_to_water(:) ! [W m-2] Area-weighted shortwave radiation reaching the water surface.
 
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   phase_unapplied_energy(:), & ! [J] Energy not applied by the local phase-change kernel.
     &   phase_mass_budget_error(:), & ! [kg] Local water-plus-ice mass-conservation error.
     &   phase_energy_budget_error(:) ! [J] Local water-plus-ice energy-conservation error.
 
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   watsto(:), & ! [m3] water storage (volume) in river + floodplain
     &   rivdph(:), & ! [m] river depth
     &   rivare(:), & ! [m2] river area
@@ -153,7 +153,7 @@ subroutine init_heatlink_river_mod(dt)
 
     call init_heatlink_log(CAMA_LOG_UNIT)
     call write_heatlink_time('INIT', KSTEP, IYYYYMMDD, IHHMM)
-    write(HEAT_LOG_UNIT, '(a)') '[initialization]'
+    write(HEAT_LOG_UNIT, '(a)') '[heatlink_river_mod/init_heatlink_river_mod]'
     call init_heatlink_diagnostics()
     if (LICE) then
         write(HEAT_LOG_UNIT, '(a,i0)') &
@@ -174,54 +174,54 @@ subroutine init_heatlink_river_mod(dt)
     call init_topo_mod()
     call init_thermo_mod()
 
-    if (LHEAT_DIAG) allocate(local_added_energy_j(NSEQMAX), source = 0.0_JPRB)
-    if (LHEAT_DIAG) allocate(advection_throughput_j(NSEQMAX), source = 0.0_JPRD)
-    if (LHEAT_DIAG) allocate(local_dry_energy_j(NSEQMAX), local_throughput_j(NSEQMAX), floor_energy_j(NSEQMAX), source = 0.0_JPRB)
-    allocate(wattmp(NSEQMAX), source = 0.0_JPRB)
-    allocate(advection_initial_liquid_volume_m3(NSEQMAX), source = 0.0_JPRD)
-    allocate(advection_heat_budget_error_j(NSEQMAX), source = 0.0_JPRD)
-    allocate(advection_water_budget_error_m3(NSEQMAX), source = 0.0_JPRD)
-    allocate(advection_unapplied_sensible_heat_j(NSEQMAX), source = 0.0_JPRD)
-    allocate(advection_runoff_flow_m3s(NSEQMAX), source = 0.0_JPRB)
-    allocate(advection_upstream_flow_m3s(NSEQMAX), source = 0.0_JPRB)
-    allocate(hflx_srf(NSEQMAX), source = 0.0_JPRB)
-    allocate(hflx_bdy(NSEQMAX), source = 0.0_JPRB)
+    if (LHEAT_DIAG) allocate(local_added_energy_j(NSEQMAX), source=0.0_JPRB)
+    if (LHEAT_DIAG) allocate(advection_throughput_j(NSEQMAX), source=0.0_JPRD)
+    if (LHEAT_DIAG) allocate(local_dry_energy_j(NSEQMAX), local_throughput_j(NSEQMAX), floor_energy_j(NSEQMAX), source=0.0_JPRB)
+    allocate(wattmp(NSEQMAX), source=0.0_JPRB)
+    allocate(advection_initial_liquid_volume_m3(NSEQMAX), source=0.0_JPRD)
+    allocate(advection_heat_budget_error_j(NSEQMAX), source=0.0_JPRD)
+    allocate(advection_water_budget_error_m3(NSEQMAX), source=0.0_JPRD)
+    allocate(advection_unapplied_sensible_heat_j(NSEQMAX), source=0.0_JPRD)
+    allocate(advection_runoff_flow_m3s(NSEQMAX), source=0.0_JPRB)
+    allocate(advection_upstream_flow_m3s(NSEQMAX), source=0.0_JPRB)
+    allocate(hflx_srf(NSEQMAX), source=0.0_JPRB)
+    allocate(hflx_bdy(NSEQMAX), source=0.0_JPRB)
     if (LICE) then
-        allocate(advection_ice_budget_error_m3(NSEQMAX), source = 0.0_JPRD)
-        allocate(advection_combined_energy_budget_error_j(NSEQMAX), source = 0.0_JPRD)
-        allocate(icevol(NSEQMAX), source = 0.0_JPRB)
-        allocate(icevol_excess(NSEQMAX), source = 0.0_JPRB)
-        allocate(icearea(NSEQMAX), source = 0.0_JPRB)
-        allocate(icethickness(NSEQMAX), source = 0.0_JPRB)
-        allocate(icefraction(NSEQMAX), source = 0.0_JPRB)
-        allocate(icearea_excess(NSEQMAX), source = 0.0_JPRB)
-        allocate(icethickness_excess(NSEQMAX), source = 0.0_JPRB)
-        allocate(ice_surface_temperature(NSEQMAX), source = TMELT)
-        allocate(ice_upward_conductive_heat_flux(NSEQMAX), source = 0.0_JPRB)
-        allocate(ice_excess_surface_temperature(NSEQMAX), source = TMELT)
-        allocate(hflx_ice_srf(NSEQMAX), source = 0.0_JPRB)
-        allocate(hflx_ice_excess_srf(NSEQMAX), source = 0.0_JPRB)
-        allocate(swdn_to_water(NSEQMAX), source = 0.0_JPRB)
-        allocate(phase_unapplied_energy(NSEQMAX), source = 0.0_JPRB)
-        allocate(phase_mass_budget_error(NSEQMAX), source = 0.0_JPRB)
-        allocate(phase_energy_budget_error(NSEQMAX), source = 0.0_JPRB)
+        allocate(advection_ice_budget_error_m3(NSEQMAX), source=0.0_JPRD)
+        allocate(advection_combined_energy_budget_error_j(NSEQMAX), source=0.0_JPRD)
+        allocate(icevol(NSEQMAX), source=0.0_JPRB)
+        allocate(icevol_excess(NSEQMAX), source=0.0_JPRB)
+        allocate(icearea(NSEQMAX), source=0.0_JPRB)
+        allocate(icethickness(NSEQMAX), source=0.0_JPRB)
+        allocate(icefraction(NSEQMAX), source=0.0_JPRB)
+        allocate(icearea_excess(NSEQMAX), source=0.0_JPRB)
+        allocate(icethickness_excess(NSEQMAX), source=0.0_JPRB)
+        allocate(ice_surface_temperature(NSEQMAX), source=TMELT)
+        allocate(ice_upward_conductive_heat_flux(NSEQMAX), source=0.0_JPRB)
+        allocate(ice_excess_surface_temperature(NSEQMAX), source=TMELT)
+        allocate(hflx_ice_srf(NSEQMAX), source=0.0_JPRB)
+        allocate(hflx_ice_excess_srf(NSEQMAX), source=0.0_JPRB)
+        allocate(swdn_to_water(NSEQMAX), source=0.0_JPRB)
+        allocate(phase_unapplied_energy(NSEQMAX), source=0.0_JPRB)
+        allocate(phase_mass_budget_error(NSEQMAX), source=0.0_JPRB)
+        allocate(phase_energy_budget_error(NSEQMAX), source=0.0_JPRB)
     endif
 
-    allocate(lwdn(NSEQMAX), source = 0.0_JPRB)
-    allocate(psrf(NSEQMAX), source = 0.0_JPRB)
-    allocate(qair(NSEQMAX), source = 0.0_JPRB)
-    allocate(swdn(NSEQMAX), source = 0.0_JPRB)
-    allocate(tair(NSEQMAX), source = 0.0_JPRB)
-    allocate(trof(NSEQMAX), source = 0.0_JPRB)
-    allocate(wind(NSEQMAX), source = 0.0_JPRB)
+    allocate(lwdn(NSEQMAX), source=0.0_JPRB)
+    allocate(psrf(NSEQMAX), source=0.0_JPRB)
+    allocate(qair(NSEQMAX), source=0.0_JPRB)
+    allocate(swdn(NSEQMAX), source=0.0_JPRB)
+    allocate(tair(NSEQMAX), source=0.0_JPRB)
+    allocate(trof(NSEQMAX), source=0.0_JPRB)
+    allocate(wind(NSEQMAX), source=0.0_JPRB)
 
-    allocate(watsto(NSEQMAX), source = 0.0_JPRB)
-    allocate(rivdph(NSEQMAX), source = 0.0_JPRB)
-    allocate(rivare(NSEQMAX), source = 0.0_JPRB)
-    allocate(rivvel(NSEQMAX), source = 0.0_JPRB)
-    allocate(flddph(NSEQMAX), source = 0.0_JPRB)
-    allocate(fldare(NSEQMAX), source = 0.0_JPRB)
-    allocate(fldvel(NSEQMAX), source = 0.0_JPRB)
+    allocate(watsto(NSEQMAX), source=0.0_JPRB)
+    allocate(rivdph(NSEQMAX), source=0.0_JPRB)
+    allocate(rivare(NSEQMAX), source=0.0_JPRB)
+    allocate(rivvel(NSEQMAX), source=0.0_JPRB)
+    allocate(flddph(NSEQMAX), source=0.0_JPRB)
+    allocate(fldare(NSEQMAX), source=0.0_JPRB)
+    allocate(fldvel(NSEQMAX), source=0.0_JPRB)
 
     if (LRESTART) then
         call read_restart('RIVWAT_TMP', dt, is_found, wattmp)
@@ -255,7 +255,7 @@ end subroutine prepare_heatlink_input
 
 
 subroutine enforce_liquid_inflow_temperature(temperature_k)
-    real(kind = JPRB), intent(inout) :: &
+    real(kind=JPRB), intent(inout) :: &
     &   temperature_k(:) ! [K] Liquid-water inflow temperature; returned no colder than TMELT.
 
     temperature_k(:) = max(temperature_k(:), TMELT)
@@ -276,19 +276,19 @@ end subroutine capture_river_water_advection_state
 
 
 subroutine advance_river_water_advection(dt_seconds)
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   dt_seconds ! [s] Current adaptive hydraulic time step.
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   domain_sensible_heat_scale_j, & ! [J] Sum of absolute represented cell sensible heat.
     &   domain_combined_energy_scale_j, & ! [J] Absolute water-sensible plus ice-latent energy scale.
     &   volumetric_ice_latent_energy_j_m3 ! [J m-3] Magnitude of melting-point ice latent energy.
 
-    real(kind = JPRD) :: boundary_heat_j ! [J] Net sensible heat entering across external boundaries.
-    real(kind = JPRD) :: boundary_absolute_j ! [J] Absolute sensible-heat exchange across external boundaries.
-    real(kind = JPRD) :: ice_export_m3 ! [m3] Ice volume exported across external boundaries.
+    real(kind=JPRD) :: boundary_heat_j ! [J] Net sensible heat entering across external boundaries.
+    real(kind=JPRD) :: boundary_absolute_j ! [J] Absolute sensible-heat exchange across external boundaries.
+    real(kind=JPRD) :: ice_export_m3 ! [m3] Ice volume exported across external boundaries.
 
     ice_export_m3 = 0.0_JPRD
-    volumetric_ice_latent_energy_j_m3 = real(RI, kind = JPRD) * real(HFUS, kind = JPRD)
+    volumetric_ice_latent_energy_j_m3 = real(RI, kind=JPRD) * real(HFUS, kind=JPRD)
 
     advection_runoff_flow_m3s(:) = D2RUNOFF(:,1) + D2GDWRTN(:,1)
     advection_upstream_flow_m3s(:) = 0.0_JPRB
@@ -296,60 +296,60 @@ subroutine advance_river_water_advection(dt_seconds)
     if (LPTHOUT) then
         if (LHEAT_DIAG) then
             call advect_river_water_sensible_heat( &
-            &   water_temperature_k = wattmp(:NSEQALL), &
-            &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-            &   liquid_volume_after_m3 = P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
-            &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-            &   dt_seconds = dt_seconds, &
-            &   bifurcation_flow_m3s = D1PTHFLWSUM, &
-            &   runoff_flow_m3s = advection_runoff_flow_m3s(:NSEQALL), &
-            &   upstream_inflow_m3s = advection_upstream_flow_m3s(:NSEQALL), &
-            &   inflow_temperature_k = trof(:NSEQALL), &
-            &   heat_budget_error_j = advection_heat_budget_error_j(:NSEQALL), &
-            &   water_budget_error_m3 = advection_water_budget_error_m3(:NSEQALL), &
-            &   unapplied_sensible_heat_j = advection_unapplied_sensible_heat_j(:NSEQALL), &
-            &   domain_heat_budget_error_j = advection_domain_heat_budget_error_j, &
-            &   heat_throughput_j = advection_throughput_j(:NSEQALL), &
-            &   external_heat_j = boundary_heat_j, external_heat_absolute_j = boundary_absolute_j)
+            &   water_temperature_k=wattmp(:NSEQALL), &
+            &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+            &   liquid_volume_after_m3=P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
+            &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+            &   dt_seconds=dt_seconds, &
+            &   bifurcation_flow_m3s=D1PTHFLWSUM, &
+            &   runoff_flow_m3s=advection_runoff_flow_m3s(:NSEQALL), &
+            &   upstream_inflow_m3s=advection_upstream_flow_m3s(:NSEQALL), &
+            &   inflow_temperature_k=trof(:NSEQALL), &
+            &   heat_budget_error_j=advection_heat_budget_error_j(:NSEQALL), &
+            &   water_budget_error_m3=advection_water_budget_error_m3(:NSEQALL), &
+            &   unapplied_sensible_heat_j=advection_unapplied_sensible_heat_j(:NSEQALL), &
+            &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j, &
+            &   heat_throughput_j=advection_throughput_j(:NSEQALL), &
+            &   external_heat_j=boundary_heat_j, external_heat_absolute_j=boundary_absolute_j)
         else
             call advect_river_water_sensible_heat( &
-            &   water_temperature_k = wattmp(:NSEQALL), &
-            &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-            &   liquid_volume_after_m3 = P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
-            &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-            &   dt_seconds = dt_seconds, &
-            &   bifurcation_flow_m3s = D1PTHFLWSUM, &
-            &   runoff_flow_m3s = advection_runoff_flow_m3s(:NSEQALL), &
-            &   upstream_inflow_m3s = advection_upstream_flow_m3s(:NSEQALL), &
-            &   inflow_temperature_k = trof(:NSEQALL))
+            &   water_temperature_k=wattmp(:NSEQALL), &
+            &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+            &   liquid_volume_after_m3=P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
+            &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+            &   dt_seconds=dt_seconds, &
+            &   bifurcation_flow_m3s=D1PTHFLWSUM, &
+            &   runoff_flow_m3s=advection_runoff_flow_m3s(:NSEQALL), &
+            &   upstream_inflow_m3s=advection_upstream_flow_m3s(:NSEQALL), &
+            &   inflow_temperature_k=trof(:NSEQALL))
         endif
     else
         if (LHEAT_DIAG) then
             call advect_river_water_sensible_heat( &
-            &   water_temperature_k = wattmp(:NSEQALL), &
-            &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-            &   liquid_volume_after_m3 = P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
-            &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-            &   dt_seconds = dt_seconds, &
-            &   runoff_flow_m3s = advection_runoff_flow_m3s(:NSEQALL), &
-            &   upstream_inflow_m3s = advection_upstream_flow_m3s(:NSEQALL), &
-            &   inflow_temperature_k = trof(:NSEQALL), &
-            &   heat_budget_error_j = advection_heat_budget_error_j(:NSEQALL), &
-            &   water_budget_error_m3 = advection_water_budget_error_m3(:NSEQALL), &
-            &   unapplied_sensible_heat_j = advection_unapplied_sensible_heat_j(:NSEQALL), &
-            &   domain_heat_budget_error_j = advection_domain_heat_budget_error_j, &
-            &   heat_throughput_j = advection_throughput_j(:NSEQALL), &
-            &   external_heat_j = boundary_heat_j, external_heat_absolute_j = boundary_absolute_j)
+            &   water_temperature_k=wattmp(:NSEQALL), &
+            &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+            &   liquid_volume_after_m3=P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
+            &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+            &   dt_seconds=dt_seconds, &
+            &   runoff_flow_m3s=advection_runoff_flow_m3s(:NSEQALL), &
+            &   upstream_inflow_m3s=advection_upstream_flow_m3s(:NSEQALL), &
+            &   inflow_temperature_k=trof(:NSEQALL), &
+            &   heat_budget_error_j=advection_heat_budget_error_j(:NSEQALL), &
+            &   water_budget_error_m3=advection_water_budget_error_m3(:NSEQALL), &
+            &   unapplied_sensible_heat_j=advection_unapplied_sensible_heat_j(:NSEQALL), &
+            &   domain_heat_budget_error_j=advection_domain_heat_budget_error_j, &
+            &   heat_throughput_j=advection_throughput_j(:NSEQALL), &
+            &   external_heat_j=boundary_heat_j, external_heat_absolute_j=boundary_absolute_j)
         else
             call advect_river_water_sensible_heat( &
-            &   water_temperature_k = wattmp(:NSEQALL), &
-            &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-            &   liquid_volume_after_m3 = P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
-            &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-            &   dt_seconds = dt_seconds, &
-            &   runoff_flow_m3s = advection_runoff_flow_m3s(:NSEQALL), &
-            &   upstream_inflow_m3s = advection_upstream_flow_m3s(:NSEQALL), &
-            &   inflow_temperature_k = trof(:NSEQALL))
+            &   water_temperature_k=wattmp(:NSEQALL), &
+            &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+            &   liquid_volume_after_m3=P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1), &
+            &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+            &   dt_seconds=dt_seconds, &
+            &   runoff_flow_m3s=advection_runoff_flow_m3s(:NSEQALL), &
+            &   upstream_inflow_m3s=advection_upstream_flow_m3s(:NSEQALL), &
+            &   inflow_temperature_k=trof(:NSEQALL))
         endif
     endif
 
@@ -357,40 +357,40 @@ subroutine advance_river_water_advection(dt_seconds)
         if (LPTHOUT) then
             if (LHEAT_DIAG) then
                 call advect_river_surface_ice( &
-                &   surface_ice_volume_m3 = icevol(:NSEQALL), &
-                &   surface_ice_fraction = icefraction(:NSEQALL), &
-                &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-                &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-                &   dt_seconds = dt_seconds, &
-                &   bifurcation_flow_m3s = D1PTHFLWSUM, &
-                &   ice_budget_error_m3 = advection_ice_budget_error_m3(:NSEQALL), &
-                &   domain_ice_budget_error_m3 = advection_domain_ice_budget_error_m3, exported_ice_volume_m3 = ice_export_m3)
+                &   surface_ice_volume_m3=icevol(:NSEQALL), &
+                &   surface_ice_fraction=icefraction(:NSEQALL), &
+                &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+                &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+                &   dt_seconds=dt_seconds, &
+                &   bifurcation_flow_m3s=D1PTHFLWSUM, &
+                &   ice_budget_error_m3=advection_ice_budget_error_m3(:NSEQALL), &
+                &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3, exported_ice_volume_m3=ice_export_m3)
             else
                 call advect_river_surface_ice( &
-                &   surface_ice_volume_m3 = icevol(:NSEQALL), &
-                &   surface_ice_fraction = icefraction(:NSEQALL), &
-                &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-                &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-                &   dt_seconds = dt_seconds, &
-                &   bifurcation_flow_m3s = D1PTHFLWSUM)
+                &   surface_ice_volume_m3=icevol(:NSEQALL), &
+                &   surface_ice_fraction=icefraction(:NSEQALL), &
+                &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+                &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+                &   dt_seconds=dt_seconds, &
+                &   bifurcation_flow_m3s=D1PTHFLWSUM)
             endif
         else
             if (LHEAT_DIAG) then
                 call advect_river_surface_ice( &
-                &   surface_ice_volume_m3 = icevol(:NSEQALL), &
-                &   surface_ice_fraction = icefraction(:NSEQALL), &
-                &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-                &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-                &   dt_seconds = dt_seconds, &
-                &   ice_budget_error_m3 = advection_ice_budget_error_m3(:NSEQALL), &
-                &   domain_ice_budget_error_m3 = advection_domain_ice_budget_error_m3, exported_ice_volume_m3 = ice_export_m3)
+                &   surface_ice_volume_m3=icevol(:NSEQALL), &
+                &   surface_ice_fraction=icefraction(:NSEQALL), &
+                &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+                &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+                &   dt_seconds=dt_seconds, &
+                &   ice_budget_error_m3=advection_ice_budget_error_m3(:NSEQALL), &
+                &   domain_ice_budget_error_m3=advection_domain_ice_budget_error_m3, exported_ice_volume_m3=ice_export_m3)
             else
                 call advect_river_surface_ice( &
-                &   surface_ice_volume_m3 = icevol(:NSEQALL), &
-                &   surface_ice_fraction = icefraction(:NSEQALL), &
-                &   liquid_volume_before_m3 = advection_initial_liquid_volume_m3(:NSEQALL), &
-                &   normal_flow_m3s = D2OUTFLW(:NSEQALL,1), &
-                &   dt_seconds = dt_seconds)
+                &   surface_ice_volume_m3=icevol(:NSEQALL), &
+                &   surface_ice_fraction=icefraction(:NSEQALL), &
+                &   liquid_volume_before_m3=advection_initial_liquid_volume_m3(:NSEQALL), &
+                &   normal_flow_m3s=D2OUTFLW(:NSEQALL,1), &
+                &   dt_seconds=dt_seconds)
             endif
         endif
         if (LHEAT_DIAG) then
@@ -404,14 +404,14 @@ subroutine advance_river_water_advection(dt_seconds)
             &   advection_domain_ice_budget_error_m3
             maximum_advection_ice_mass_budget_error_kg = max( &
             &   maximum_advection_ice_mass_budget_error_kg, &
-            &   real(RI, kind = JPRD) * &
+            &   real(RI, kind=JPRD) * &
             &   maxval(abs(advection_ice_budget_error_m3(:NSEQALL))))
             maximum_advection_combined_energy_budget_error_j = max( &
             &   maximum_advection_combined_energy_budget_error_j, &
             &   maxval(abs(advection_combined_energy_budget_error_j(:NSEQALL))))
             maximum_advection_domain_ice_mass_budget_error_kg = max( &
             &   maximum_advection_domain_ice_mass_budget_error_kg, &
-            &   real(RI, kind = JPRD) * abs(advection_domain_ice_budget_error_m3))
+            &   real(RI, kind=JPRD) * abs(advection_domain_ice_budget_error_m3))
             maximum_advection_domain_combined_energy_budget_error_j = max( &
             &   maximum_advection_domain_combined_energy_budget_error_j, &
             &   abs(advection_domain_combined_energy_budget_error_j))
@@ -435,9 +435,9 @@ subroutine advance_river_water_advection(dt_seconds)
         maximum_advection_domain_heat_budget_error_j = max( &
         &   maximum_advection_domain_heat_budget_error_j, &
         &   abs(advection_domain_heat_budget_error_j))
-        domain_sensible_heat_scale_j = real(RW, kind = JPRD) * real(CW, kind = JPRD) * sum( &
+        domain_sensible_heat_scale_j = real(RW, kind=JPRD) * real(CW, kind=JPRD) * sum( &
         &   (P2RIVSTO(:NSEQALL,1) + P2FLDSTO(:NSEQALL,1)) * &
-        &   abs(real(wattmp(:NSEQALL) - TMELT, kind = JPRD)))
+        &   abs(real(wattmp(:NSEQALL) - TMELT, kind=JPRD)))
         maximum_advection_relative_domain_heat_budget_error = max( &
         &   maximum_advection_relative_domain_heat_budget_error, &
         &   abs(advection_domain_heat_budget_error_j) / &
@@ -445,7 +445,7 @@ subroutine advance_river_water_advection(dt_seconds)
         if (LICE) then
             domain_combined_energy_scale_j = domain_sensible_heat_scale_j + &
             &   volumetric_ice_latent_energy_j_m3 * sum(real( &
-            &   icevol(:NSEQALL) + icevol_excess(:NSEQALL), kind = JPRD))
+            &   icevol(:NSEQALL) + icevol_excess(:NSEQALL), kind=JPRD))
             maximum_advection_relative_domain_combined_energy_budget_error = max( &
             &   maximum_advection_relative_domain_combined_energy_budget_error, &
             &   abs(advection_domain_combined_energy_budget_error_j) / &
@@ -469,10 +469,11 @@ end subroutine finalize_river_ice_advection_state
 
 
 subroutine calc_heatlink(dt)
-    real(kind = JPRB), intent(in) :: dt ! [s] Duration of the local heat update.
+    real(kind=JPRB), intent(in) :: dt ! [s] Duration of the local heat update.
 
     if (LHEAT_DIAG) call begin_local_diagnostics(wattmp, icevol, icevol_excess)
     call write_heatlink_time('LOCAL_END', KSTEP, JYYYYMMDD, JHHMM)
+    write(HEAT_LOG_UNIT, '(a)') '[heatlink_river_mod/calc_heatlink]'
     call get_input('LWDN', lwdn)
     call get_input('PSRF', psrf)
     call get_input('QAIR', qair)
@@ -605,9 +606,9 @@ end subroutine write_heatlink_restart
 
 
 subroutine enforce_river_ice_capacity()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_surface_area_m2       ! [m2] Combined river and inundated water-surface area.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq                        ! [-] Vector index of the river cell.
 
     !$omp simd private(water_surface_area_m2)
@@ -621,12 +622,12 @@ end subroutine enforce_river_ice_capacity
 
 
 subroutine diagnose_river_ice_geometry()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   water_surface_area_m2, &      ! [m2] Combined river and inundated water-surface area.
     &   land_surface_area_m2, &       ! [m2] Grid-cell area not occupied by the diagnosed water surface.
     &   excess_surface_area_limit_m2, & ! [m2] Effective area available to immobile excess ice.
     &   excess_ice_fraction           ! [-] Fraction of the effective excess-ice area covered by ice.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq                          ! [-] Vector index of the river cell.
 
     !$omp simd private(water_surface_area_m2, land_surface_area_m2, excess_surface_area_limit_m2, excess_ice_fraction)
@@ -654,19 +655,19 @@ end subroutine diagnose_river_ice_geometry
 
 
 subroutine calc_ice_heat_fluxes()
-    call evaluate_ice_surface_thermodynamics(.true.)
+    call evaluate_ice_surface_thermodynamics(.TRUE.)
 end subroutine calc_ice_heat_fluxes
 
 
 subroutine diagnose_ice_temperatures_at_timestep_end()
-    call evaluate_ice_surface_thermodynamics(.false.)
+    call evaluate_ice_surface_thermodynamics(.FALSE.)
 end subroutine diagnose_ice_temperatures_at_timestep_end
 
 
 subroutine evaluate_ice_surface_thermodynamics(store_applied_fluxes)
     logical, intent(in) :: &
     &   store_applied_fluxes           ! [-] True to retain fluxes applied during the current time step.
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   surface_atmospheric_heat_flux_w_m2, & ! [W m-2] Atmospheric heat flux into water-surface ice.
     &   surface_transmitted_shortwave_w_m2, & ! [W m-2] Shortwave transmitted through water-surface ice.
     &   surface_temperature_k, &       ! [K] Diagnosed upper temperature of water-surface ice.
@@ -678,7 +679,7 @@ subroutine evaluate_ice_surface_thermodynamics(store_applied_fluxes)
     &   excess_upward_conductive_heat_flux_w_m2, & ! [W m-2] Bottom-to-surface flux within excess ice.
     &   newton_residual_w_m2, &       ! [W m-2] Residual from one ice-surface Newton solve.
     &   maximum_newton_residual_w_m2  ! [W m-2] Maximum residual among all ice-surface solves.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq, &                       ! [-] Vector index of the river cell.
     &   newton_iteration_count, &     ! [-] Newton updates used by one ice-surface solve.
     &   maximum_newton_iterations_used, & ! [-] Maximum Newton updates used across the domain.
@@ -700,7 +701,7 @@ subroutine evaluate_ice_surface_thermodynamics(store_applied_fluxes)
     !$omp& reduction(+:nonconverged_newton_solve_count)
     do iseq = 1, NSEQALL
         if (icearea(iseq) > 0.0_JPRB .and. icevol(iseq) > 0.0_JPRB) then
-            if (watsto(iseq) > real(STO_IGNORE, kind = JPRB)) then
+            if (watsto(iseq) > real(STO_IGNORE, kind=JPRB)) then
                 bottom_thermal_conductance_w_m2_k = &
                 &   KI / max(icethickness(iseq), ICE_THICKNESS_MIN_M)
             else
@@ -777,14 +778,14 @@ end subroutine evaluate_ice_surface_thermodynamics
 
 
 subroutine apply_phase_change_to_water_storage()
-    real(kind = JPRD) :: &
+    real(kind=JPRD) :: &
     &   canonical_total_volume_m3, & ! [m3] Canonical CaMa liquid storage before applying local phase change.
     &   liquid_volume_delta_m3, &    ! [m3] Final minus initial liquid-water volume from local phase change.
     &   unavailable_liquid_volume_m3, & ! [m3] Requested removal exceeding available liquid storage.
     &   maximum_unavailable_liquid_volume_m3 ! [m3] Largest unavailable removal across invalid cells.
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   phase_initial_liquid_volume_m3 ! [m3] Liquid storage presented to the JPRB phase-change kernel.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq, &                      ! [-] Vector index of the river cell.
     &   invalid_update_cell_count    ! [-] Number of storage deltas that cannot be applied.
     logical :: &
@@ -794,21 +795,21 @@ subroutine apply_phase_change_to_water_storage()
     maximum_unavailable_liquid_volume_m3 = 0.0_JPRD
     do iseq = 1, NSEQALL
         canonical_total_volume_m3 = P2RIVSTO(iseq,1) + P2FLDSTO(iseq,1)
-        phase_initial_liquid_volume_m3 = real(canonical_total_volume_m3, kind = JPRB)
+        phase_initial_liquid_volume_m3 = real(canonical_total_volume_m3, kind=JPRB)
         liquid_volume_delta_m3 = real( &
-        &   watsto(iseq) - phase_initial_liquid_volume_m3, kind = JPRD)
+        &   watsto(iseq) - phase_initial_liquid_volume_m3, kind=JPRD)
         call apply_liquid_volume_delta_to_storage( &
-        &   river_storage_volume_m3 = P2RIVSTO(iseq,1), &
-        &   floodplain_storage_volume_m3 = P2FLDSTO(iseq,1), &
-        &   liquid_volume_delta_m3 = liquid_volume_delta_m3, &
-        &   update_is_valid = update_is_valid, &
-        &   unavailable_liquid_volume_m3 = unavailable_liquid_volume_m3)
+        &   river_storage_volume_m3=P2RIVSTO(iseq,1), &
+        &   floodplain_storage_volume_m3=P2FLDSTO(iseq,1), &
+        &   liquid_volume_delta_m3=liquid_volume_delta_m3, &
+        &   update_is_valid=update_is_valid, &
+        &   unavailable_liquid_volume_m3=unavailable_liquid_volume_m3)
         if (.not. update_is_valid) then
             invalid_update_cell_count = invalid_update_cell_count + 1
             maximum_unavailable_liquid_volume_m3 = max( &
             &   maximum_unavailable_liquid_volume_m3, unavailable_liquid_volume_m3)
         endif
-        D2STORGE(iseq,1) = real(P2RIVSTO(iseq,1) + P2FLDSTO(iseq,1), kind = JPRB)
+        D2STORGE(iseq,1) = real(P2RIVSTO(iseq,1) + P2FLDSTO(iseq,1), kind=JPRB)
         watsto(iseq) = D2STORGE(iseq,1)
     enddo
     if (invalid_update_cell_count > 0) then
@@ -824,12 +825,12 @@ end subroutine apply_phase_change_to_water_storage
 
 
 subroutine log_ice_budget()
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   local_mass_scale_kg, &     ! [kg] Local total water-plus-ice mass used to normalize mass error.
     &   local_energy_scale_j, &    ! [J] Local water-plus-ice energy magnitude used to normalize energy error.
     &   maximum_relative_mass_error, & ! [-] Maximum cellwise relative mass-conservation error.
     &   maximum_relative_energy_error  ! [-] Maximum cellwise relative energy-conservation error.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq                         ! [-] Vector index of the river cell.
 
     maximum_relative_mass_error = 0.0_JPRB
@@ -859,17 +860,17 @@ end subroutine log_ice_budget
 
 
 subroutine get_water
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   dph_new, & ! [m] River depth after the minimum-depth correction.
     &   wth_new, & ! [m] River width after the minimum-depth correction.
     &   sto_new, & ! [m3] River storage including any reassigned shallow floodwater.
     &   m, & ! [-] Numeric mask selecting cells needing geometry correction.
     &   river_flow_cross_section, & ! [m2] Corrected river cross-sectional flow area.
     &   floodplain_flow_cross_section_m2 ! [m2] Corrected floodplain cross-sectional flow area.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq ! [-] One-based river vector index.
 
-    watsto(:) = real(P2RIVSTO(:,1) + P2FLDSTO(:,1), kind = JPRB)
+    watsto(:) = real(P2RIVSTO(:,1) + P2FLDSTO(:,1), kind=JPRB)
 
     rivdph(:) = D2RIVDPH(:, 1)
     rivare(:) = D2RIVLEN(:, 1) * D2RIVWTH(:, 1)
@@ -915,7 +916,7 @@ subroutine get_water
         floodplain_flow_cross_section_m2 = 0.0_JPRB
         if (fldare(iseq) > 0.0_JPRB) then
             floodplain_flow_cross_section_m2 = floodplain_flow_cross_section( &
-            &   real(P2FLDSTO(iseq,1), kind = JPRB), D2RIVLEN(iseq,1), &
+            &   real(P2FLDSTO(iseq,1), kind=JPRB), D2RIVLEN(iseq,1), &
             &   flddph(iseq), D2RIVWTH(iseq,1))
         endif
         fldvel(iseq) = diagnose_flow_velocity( &
@@ -929,7 +930,7 @@ subroutine fin_heatlink_river_mod()
     &   fin_thermo_mod
 
     call fin_heatlink_diagnostics()
-    write(HEAT_LOG_UNIT, '(a)') '[finalization]'
+    write(HEAT_LOG_UNIT, '(a)') '[fin_heatlink_river_mod]'
     if (allocated(local_added_energy_j)) deallocate(local_added_energy_j)
     if (allocated(advection_throughput_j)) deallocate(advection_throughput_j)
     if (allocated(local_dry_energy_j)) deallocate(local_dry_energy_j)

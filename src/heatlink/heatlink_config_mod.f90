@@ -3,37 +3,37 @@ module heatlink_config_mod
     private
 
     integer, parameter :: CONFIG_INTEGER_KIND = selected_int_kind(9) ! [-] Integer kind for configuration values.
-    logical, public, save :: LICE = .false. ! [-] Enable water/ice phase changes.
-    logical, public, save :: LHEAT_DIAG = .false. ! [-] Enable detailed heat-budget monitoring.
-    character(len = 512), public, save :: CHEAT_LOG = 'HEAT-LINK.log' ! [-] Heatlink log path, relative to the run directory.
-    integer(kind = CONFIG_INTEGER_KIND), public, save :: NNEWTON_MAX_ICE = 4 ! [-] Maximum ice-surface Newton iterations.
+    logical, public, save :: LICE = .FALSE. ! [-] Enable water/ice phase changes.
+    logical, public, save :: LHEAT_DIAG = .FALSE. ! [-] Enable detailed heat-budget monitoring.
+    character(len=512), public, save :: CHEAT_LOG = 'HEAT-LINK.log' ! [-] Heatlink log path, relative to the run directory.
+    integer(kind=CONFIG_INTEGER_KIND), public, save :: NNEWTON_MAX_ICE = 4 ! [-] Maximum ice-surface Newton iterations.
 
     public :: init_heatlink_config
 
 contains
 
     subroutine init_heatlink_config(nml_path, log_unit, lwevap, llevee)
-        character(len = *), intent(in) :: nml_path
+        character(len=*), intent(in) :: nml_path
         integer, intent(in) :: log_unit
         logical, intent(in) :: lwevap, llevee
 
         integer :: nml_unit, ios
         namelist /NHEATLINK/ LICE, NNEWTON_MAX_ICE, LHEAT_DIAG, CHEAT_LOG
 
-        LICE = .false.
-        LHEAT_DIAG = .false.
+        LICE = .FALSE.
+        LHEAT_DIAG = .FALSE.
         CHEAT_LOG = 'HEAT-LINK.log'
         NNEWTON_MAX_ICE = 4
 
-        open(newunit = nml_unit, file = trim(nml_path), status = 'old', &
-        &   action = 'read', iostat = ios)
+        open(newunit=nml_unit, file=trim(nml_path), status='old', &
+        &   action='read', iostat=ios)
         if (ios /= 0) then
             write(log_unit, '(a,1x,a)') &
             &   'ERROR: heatlink could not open namelist:', trim(nml_path)
             error stop 1
         endif
 
-        read(nml_unit, nml = NHEATLINK, iostat = ios)
+        read(nml_unit, nml=NHEATLINK, iostat=ios)
         close(nml_unit)
         if (ios > 0) then
             write(log_unit, '(a,1x,a)') &

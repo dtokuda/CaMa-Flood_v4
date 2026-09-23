@@ -10,8 +10,8 @@ program test_temperature_dry_state
     use heat_residual_mod, only: HeatResidualStats, record_heat_residual
     !$ use omp_lib, only: omp_set_num_threads
     implicit none
-    real(kind = JPRD), parameter :: capacity = real(CW,JPRD)*real(RW,JPRD)
-    real(kind = JPRB), parameter :: tol = 8.0_JPRB * epsilon(1.0_JPRB)
+    real(kind=JPRD), parameter :: capacity = real(CW,JPRD)*real(RW,JPRD)
+    real(kind=JPRB), parameter :: tol = 8.0_JPRB * epsilon(1.0_JPRB)
 
     NSEQALL = 2
     NSEQRIV = 1
@@ -30,15 +30,15 @@ program test_temperature_dry_state
 contains
 subroutine check(ok, label)
     logical, intent(in) :: ok
-    character(len = *), intent(in) :: label
+    character(len=*), intent(in) :: label
     if (ok) return
     write(*, '(a)') '[TEST FAILED] '//label
     error stop 1
 end subroutine
 
 subroutine observed_events()
-    real(kind = JPRB) :: t(2), q(2), dt, initial(2)
-    real(kind = JPRD) :: before(2), after(2), u(2), err(2), volume(2), flow(2), old_t(2), tiny_volume(2)
+    real(kind=JPRB) :: t(2), q(2), dt, initial(2)
+    real(kind=JPRD) :: before(2), after(2), u(2), err(2), volume(2), flow(2), old_t(2), tiny_volume(2)
     integer :: i
     ! Recorded states at the two MIROC6 internal steps that produced 552 K and 399 K.
     old_t = [278.3769003973869_JPRD, 284.60214717092794_JPRD]
@@ -53,7 +53,7 @@ subroutine observed_events()
         before = [volume(i), 100.0_JPRD]
         after = [tiny_volume(i), 100.0_JPRD+real(q(1),JPRD)*real(dt,JPRD)]
         call advect_river_water_sensible_heat(t,before,after,q,dt, &
-        &   unapplied_sensible_heat_j = u,heat_budget_error_j = err)
+        &   unapplied_sensible_heat_j=u,heat_budget_error_j=err)
         call check(t(1) == initial(1), 'observed dry event retains previous temperature exactly')
         call check(abs(t(2)-initial(2)) <= tol*initial(2), 'observed downstream temperature stays uniform')
         call check(maxval(abs(err)) < 1.0e-15_JPRD, 'observed event ledger closes')
@@ -62,8 +62,8 @@ subroutine observed_events()
 end subroutine
 
 subroutine near_complete_drainage()
-    real(kind = JPRB) :: t(2), q(2), dt
-    real(kind = JPRD) :: before(2), after(2), u(2)
+    real(kind=JPRB) :: t(2), q(2), dt
+    real(kind=JPRD) :: before(2), after(2), u(2)
     integer :: i, tested, above_threshold
     dt = 360.0_JPRB
     tested = 0
@@ -77,7 +77,7 @@ subroutine near_complete_drainage()
         if (after(1) <= 0.0_JPRD) cycle
         tested = tested+1
         if (after(1)>STO_IGNORE) above_threshold = above_threshold+1
-        call advect_river_water_sensible_heat(t,before,after,q,dt,unapplied_sensible_heat_j = u)
+        call advect_river_water_sensible_heat(t,before,after,q,dt,unapplied_sensible_heat_j=u)
         call check(t(1) == TMELT+5.0_JPRB, 'near-complete drainage retains uniform source temperature')
         call check(abs(t(2)-(TMELT+5.0_JPRB)) <= tol*TMELT, 'near-complete drainage receiver stays uniform')
     enddo
@@ -87,8 +87,8 @@ subroutine near_complete_drainage()
 end subroutine
 
 subroutine dry_and_rewet()
-    real(kind = JPRB) :: t(2), q(2), runoff(2), tin(2)
-    real(kind = JPRD) :: before(2), after(2), u(2), expected, volumes(4)
+    real(kind=JPRB) :: t(2), q(2), runoff(2), tin(2)
+    real(kind=JPRD) :: before(2), after(2), u(2), expected, volumes(4)
     integer :: i
     volumes = [0.0_JPRD,0.5_JPRD*STO_IGNORE,STO_IGNORE,2.0_JPRD*STO_IGNORE]
     do i = 1, 4
@@ -100,7 +100,7 @@ subroutine dry_and_rewet()
         ! Use exact storage thresholds even with JPRB runoff rounding.
         after = [volumes(i),0.0_JPRD]
         call advect_river_water_sensible_heat(t,before,after,q,1.0_JPRB, &
-        &   runoff_flow_m3s = runoff,inflow_temperature_k = tin,unapplied_sensible_heat_j = u)
+        &   runoff_flow_m3s=runoff,inflow_temperature_k=tin,unapplied_sensible_heat_j=u)
         if (i <= 3) then
             call check(t(1) == 290.0_JPRB, 'zero/below/exact threshold retains warm memory')
             expected = capacity*real(runoff(1),JPRD)*real(tin(1)-TMELT,JPRD) &
@@ -111,7 +111,7 @@ subroutine dry_and_rewet()
             call check(abs(t(1)-280.0_JPRB) <= tol*280.0_JPRB, 'wet inflow does not inherit old dry temperature')
         endif
         before = after
-        call advect_river_water_sensible_heat(t,before,after,q,1.0_JPRB,unapplied_sensible_heat_j = u)
+        call advect_river_water_sensible_heat(t,before,after,q,1.0_JPRB,unapplied_sensible_heat_j=u)
         call check(all(u == 0.0_JPRD), 'unchanged dry state does not count prior residual again')
     enddo
     call check(diagnose_surface_ice_transport_fraction(STO_IGNORE,1.0_JPRD) == 0.0_JPRD, 'dry ice transport is zero')
@@ -120,10 +120,10 @@ subroutine dry_and_rewet()
 end subroutine
 
 subroutine phase_step(v,t,ice,qw,qi,u,dry)
-    real(kind = JPRB), intent(inout) :: v,t,ice
-    real(kind = JPRB), intent(in) :: qw,qi
-    real(kind = JPRB), intent(out) :: u,dry
-    real(kind = JPRB) :: excess,frozen,melted,melted_excess,merr,eerr,negative,old_energy,scale
+    real(kind=JPRB), intent(inout) :: v,t,ice
+    real(kind=JPRB), intent(in) :: qw,qi
+    real(kind=JPRB), intent(out) :: u,dry
+    real(kind=JPRB) :: excess,frozen,melted,melted_excess,merr,eerr,negative,old_energy,scale
     logical :: valid,nonfinite
     excess = 0.0_JPRB
     old_energy = water_ice_energy_j(v,t,ice,TMELT)
@@ -136,7 +136,7 @@ subroutine phase_step(v,t,ice,qw,qi,u,dry)
 end subroutine
 
 subroutine phase_cycles()
-    real(kind = JPRB) :: v,t,ice,u,dry,qw,qi,old_v,expected_t
+    real(kind=JPRB) :: v,t,ice,u,dry,qw,qi,old_v,expected_t
     v = 0.0_JPRB
     t = 290.0_JPRB
     ice = 0.0_JPRB
@@ -178,7 +178,7 @@ subroutine phase_cycles()
 end subroutine
 
 subroutine local_heating_and_floor()
-    real(kind = JPRB) :: t,u,v
+    real(kind=JPRB) :: t,u,v
     t = 290.0_JPRB
     v = real(STO_IGNORE,JPRB)
     call update_liquid_temperature_no_phase_change(t,v,-100.0_JPRB,u)
@@ -193,7 +193,7 @@ subroutine local_heating_and_floor()
 end subroutine
 
 subroutine floor_without_diagnostics()
-    real(kind = JPRB) :: t(3), reference(3), v(3), u(3) ! [K,m3,J] Temperatures, volumes and rejected cooling.
+    real(kind=JPRB) :: t(3), reference(3), v(3), u(3) ! [K,m3,J] Temperatures, volumes and rejected cooling.
     t = [260.0_JPRB, 290.0_JPRB, 260.0_JPRB]
     v = [1.0_JPRB, 1.0_JPRB, 0.0_JPRB]
     reference = t
@@ -205,7 +205,7 @@ end subroutine floor_without_diagnostics
 subroutine parallel_residual_ledger()
     integer, parameter :: n = 33003
     type(HeatResidualStats) :: stats
-    real(kind = JPRD) :: residual(n),throughput(n)
+    real(kind=JPRD) :: residual(n),throughput(n)
     logical :: mask(n)
     integer :: i,threads
     do i = 1,n

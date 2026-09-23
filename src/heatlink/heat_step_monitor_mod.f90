@@ -7,41 +7,41 @@ module heat_step_monitor_mod
 
     ! Independent diagnostics: snapshots and interval sums never update model state.
     type HeatStepState
-        real(kind = JPRD), allocatable :: volume(:) ! [m3] Cellwise liquid volume at interval start.
-        real(kind = JPRD), allocatable :: theta(:) ! [K] Cellwise liquid temperature relative to TMELT at interval start.
-        real(kind = JPRD), allocatable :: ice(:) ! [m3] Mobile surface-ice volume at interval start; optional.
-        real(kind = JPRD), allocatable :: excess(:) ! [m3] Immobile excess-ice volume at interval start; optional.
+        real(kind=JPRD), allocatable :: volume(:) ! [m3] Cellwise liquid volume at interval start.
+        real(kind=JPRD), allocatable :: theta(:) ! [K] Cellwise liquid temperature relative to TMELT at interval start.
+        real(kind=JPRD), allocatable :: ice(:) ! [m3] Mobile surface-ice volume at interval start; optional.
+        real(kind=JPRD), allocatable :: excess(:) ! [m3] Immobile excess-ice volume at interval start; optional.
     end type
     type HeatStepLedger
-        real(kind = JPRD) :: value(4) = 0.0_JPRD ! [J] Interval sums: net input, absolute exchange, signed and absolute unapplied heat.
-        real(kind = JPRD) :: correction(4) = 0.0_JPRD ! [J] Neumaier corrections for the corresponding interval sums.
+        real(kind=JPRD) :: value(4) = 0.0_JPRD ! [J] Interval sums: net input, absolute exchange, signed and absolute unapplied heat.
+        real(kind=JPRD) :: correction(4) = 0.0_JPRD ! [J] Neumaier corrections for the corresponding interval sums.
     end type
     integer, parameter :: SUM_BLOCK_SIZE = 4096 ! [cells] Fixed reduction block size, independent of OpenMP thread count.
     integer, parameter :: PARALLEL_MIN_SIZE = 32768 ! [cells] Minimum domain size for parallel diagnostic reductions.
     integer, parameter :: NMETRIC = 8 ! [-] Number of independently monitored extrema metrics.
     integer, parameter :: NFIELD = 16 ! [-] Number of real-valued fields in a diagnostic record.
     integer, parameter :: metric_field(NMETRIC) = [8,9,6,7,11,12,13,14] ! [-] One-based record field index for each metric.
-    character(len = 24), parameter :: metric_name(NMETRIC) = [character(len = 24) :: & ! [-] Log labels in metric_field order.
+    character(len=24), parameter :: metric_name(NMETRIC) = [character(len=24) :: & ! [-] Log labels in metric_field order.
     &   'raw [J]','adjusted [J]','unapplied [J]','absolute unapplied [J]', &
     &   'raw/exchange [-]','adjusted/exchange [-]','unapplied/exchange [-]','adjusted/storage [-]']
     ! Record fields 1:2 are elapsed time/duration [s]; 3:10 and 15:16 are energy [J]; 11:14 are ratios [-].
     type HeatStepStats
-        integer(kind = JPIB) :: steps = 0_JPIB ! [-] Number of completed intervals for this stage.
-        integer(kind = JPIB) :: samples(NMETRIC) = 0_JPIB ! [-] Valid sample count for each metric, excluding undefined ratios.
-        integer(kind = JPIB) :: no_exchange_ratio = 0_JPIB ! [-] Intervals with undefined external-exchange ratios.
-        integer(kind = JPIB) :: no_storage_ratio = 0_JPIB ! [-] Intervals with an undefined storage-scale ratio.
-        integer(kind = JPIB) :: min_step(NMETRIC) = 0_JPIB ! [-] Interval index of each metric's minimum.
-        integer(kind = JPIB) :: max_step(NMETRIC) = 0_JPIB ! [-] Interval index of each metric's maximum.
-        real(kind = JPRD) :: min_record(NFIELD,NMETRIC) = 0.0_JPRD ! [s,J,-] Full record at each minimum; field units are listed above.
-        real(kind = JPRD) :: max_record(NFIELD,NMETRIC) = 0.0_JPRD ! [s,J,-] Full record at each maximum; field units are listed above.
+        integer(kind=JPIB) :: steps = 0_JPIB ! [-] Number of completed intervals for this stage.
+        integer(kind=JPIB) :: samples(NMETRIC) = 0_JPIB ! [-] Valid sample count for each metric, excluding undefined ratios.
+        integer(kind=JPIB) :: no_exchange_ratio = 0_JPIB ! [-] Intervals with undefined external-exchange ratios.
+        integer(kind=JPIB) :: no_storage_ratio = 0_JPIB ! [-] Intervals with an undefined storage-scale ratio.
+        integer(kind=JPIB) :: min_step(NMETRIC) = 0_JPIB ! [-] Interval index of each metric's minimum.
+        integer(kind=JPIB) :: max_step(NMETRIC) = 0_JPIB ! [-] Interval index of each metric's maximum.
+        real(kind=JPRD) :: min_record(NFIELD,NMETRIC) = 0.0_JPRD ! [s,J,-] Full record at each minimum; field units are listed above.
+        real(kind=JPRD) :: max_record(NFIELD,NMETRIC) = 0.0_JPRD ! [s,J,-] Full record at each maximum; field units are listed above.
     end type
 contains
 
 ! Neumaier summation also handles a small partial sum followed by a larger term.
 subroutine add_compensated(total, correction, value)
-    real(kind = JPRD), intent(inout) :: total, correction
-    real(kind = JPRD), intent(in) :: value
-    real(kind = JPRD) :: updated
+    real(kind=JPRD), intent(inout) :: total, correction
+    real(kind=JPRD), intent(in) :: value
+    real(kind=JPRD) :: updated
     updated = total + value
     if (abs(total) >= abs(value)) then
         correction = correction + ((total - updated) + value)
@@ -52,9 +52,9 @@ subroutine add_compensated(total, correction, value)
 end subroutine
 
 function step_sum(values) result(total)
-    real(kind = JPRD), intent(in) :: values(:)
-    real(kind = JPRD) :: total, correction
-    real(kind = JPRD) :: partial(2,(size(values)+SUM_BLOCK_SIZE-1)/SUM_BLOCK_SIZE)
+    real(kind=JPRD), intent(in) :: values(:)
+    real(kind=JPRD) :: total, correction
+    real(kind=JPRD) :: partial(2,(size(values)+SUM_BLOCK_SIZE-1)/SUM_BLOCK_SIZE)
     integer :: i, block
     ! Keep both the leading sum and correction until the deterministic final merge.
     !$omp parallel do if(size(values) >= PARALLEL_MIN_SIZE) schedule(static) private(i,total,correction)
@@ -78,8 +78,8 @@ end function
 
 subroutine add_step_heat(ledger, net_j, exchange_j, unapplied_j, absolute_unapplied_j)
     type(HeatStepLedger), intent(inout) :: ledger
-    real(kind = JPRD), intent(in) :: net_j, exchange_j, unapplied_j, absolute_unapplied_j
-    real(kind = JPRD) :: values(4)
+    real(kind=JPRD), intent(in) :: net_j, exchange_j, unapplied_j, absolute_unapplied_j
+    real(kind=JPRD) :: values(4)
     integer :: i
     values = [net_j,exchange_j,unapplied_j,absolute_unapplied_j]
     do i = 1, 4
@@ -89,8 +89,8 @@ end subroutine
 
 subroutine capture_heat_step(state, volume, theta, ice, excess)
     type(HeatStepState), intent(inout) :: state
-    real(kind = JPRD), intent(in) :: volume(:), theta(:)
-    real(kind = JPRD), intent(in), optional :: ice(:), excess(:)
+    real(kind=JPRD), intent(in) :: volume(:), theta(:)
+    real(kind=JPRD), intent(in), optional :: ice(:), excess(:)
     state%volume = volume
     state%theta = theta
     if (present(ice)) state%ice = ice
@@ -99,12 +99,12 @@ end subroutine
 
 subroutine measure_heat_step(state, volume, theta, capacity, latent, delta_j, storage_j, naive_delta_j, ice, excess)
     type(HeatStepState), intent(in) :: state
-    real(kind = JPRD), intent(in) :: volume(:), theta(:), capacity, latent
-    real(kind = JPRD), intent(in), optional :: ice(:), excess(:)
-    real(kind = JPRD), intent(out) :: delta_j, storage_j, naive_delta_j
-    real(kind = JPRD) :: correction, scale_correction, initial_j, final_j
-    real(kind = JPRD) :: delta, storage, old_water, new_water, old_ice, new_ice, old_excess, new_excess
-    real(kind = JPRD) :: partial(10,(size(volume)+SUM_BLOCK_SIZE-1)/SUM_BLOCK_SIZE)
+    real(kind=JPRD), intent(in) :: volume(:), theta(:), capacity, latent
+    real(kind=JPRD), intent(in), optional :: ice(:), excess(:)
+    real(kind=JPRD), intent(out) :: delta_j, storage_j, naive_delta_j
+    real(kind=JPRD) :: correction, scale_correction, initial_j, final_j
+    real(kind=JPRD) :: delta, storage, old_water, new_water, old_ice, new_ice, old_excess, new_excess
+    real(kind=JPRD) :: partial(10,(size(volume)+SUM_BLOCK_SIZE-1)/SUM_BLOCK_SIZE)
     integer :: i, block
     ! Fixed blocks avoid a thread-count-dependent OpenMP reduction tree. No physical state is modified.
     !$omp parallel do if(size(volume) >= PARALLEL_MIN_SIZE) schedule(static) &
@@ -175,10 +175,10 @@ end subroutine
 subroutine monitor_heat_step(stats, unit, stage, end_seconds, dt_seconds, delta_j, storage_j, naive_delta_j, ledger)
     type(HeatStepStats), intent(inout) :: stats
     integer, intent(in) :: unit
-    character(len = *), intent(in) :: stage
-    real(kind = JPRD), intent(in) :: end_seconds, dt_seconds, delta_j, storage_j, naive_delta_j
+    character(len=*), intent(in) :: stage
+    real(kind=JPRD), intent(in) :: end_seconds, dt_seconds, delta_j, storage_j, naive_delta_j
     type(HeatStepLedger), intent(in) :: ledger
-    real(kind = JPRD) :: q(4), v(NFIELD)
+    real(kind=JPRD) :: q(4), v(NFIELD)
     logical :: valid(NMETRIC), exchange_valid, storage_valid
     integer :: i, k
     q = ledger%value + ledger%correction
@@ -201,7 +201,7 @@ subroutine monitor_heat_step(stats, unit, stage, end_seconds, dt_seconds, delta_
     stats%steps = stats%steps + 1_JPIB
     if (.not. exchange_valid) stats%no_exchange_ratio = stats%no_exchange_ratio + 1_JPIB
     if (.not. storage_valid) stats%no_storage_ratio = stats%no_storage_ratio + 1_JPIB
-    valid = .true.
+    valid = .TRUE.
     valid(5:7) = exchange_valid
     valid(8) = storage_valid
     do i = 1, NMETRIC
@@ -223,7 +223,7 @@ end subroutine
 
 subroutine write_stage(unit,stage)
     integer, intent(in) :: unit
-    character(len = *), intent(in) :: stage
+    character(len=*), intent(in) :: stage
     select case(stage)
     case('local')
         write(unit,'(a)') '[local heat budget]'
@@ -236,9 +236,9 @@ end subroutine
 
 subroutine write_step_record(unit,indent,step,v,exchange_valid,storage_valid)
     integer, intent(in) :: unit
-    character(len = *), intent(in) :: indent
-    integer(kind = JPIB), intent(in) :: step
-    real(kind = JPRD), intent(in) :: v(NFIELD)
+    character(len=*), intent(in) :: indent
+    integer(kind=JPIB), intent(in) :: step
+    real(kind=JPRD), intent(in) :: v(NFIELD)
     logical, intent(in) :: exchange_valid,storage_valid
     write(unit,'(2a,i0,2(a,es24.16))') indent,'interval = ',step,'; end [s] = ',v(1),'; duration [s] = ',v(2)
     write(unit,'(4a,es24.16,2(a,es24.16))') indent,'energy [J]: ', &
@@ -262,12 +262,12 @@ end subroutine
 
 subroutine write_heat_step_extrema(unit, stage, stats)
     integer, intent(in) :: unit
-    character(len = *), intent(in) :: stage
+    character(len=*), intent(in) :: stage
     type(HeatStepStats), intent(in) :: stats
     integer :: i,j
     logical :: exchange_valid,storage_valid
-    real(kind = JPRD) :: v(NFIELD)
-    integer(kind = JPIB) :: step
+    real(kind=JPRD) :: v(NFIELD)
+    integer(kind=JPIB) :: step
     call write_stage(unit,stage)
     write(unit,'(a)') '  extrema over this run (domain interval budgets)'
     write(unit,'(a,i0,a,i0,a,i0)') '  intervals = ',stats%steps, &

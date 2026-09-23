@@ -18,7 +18,7 @@ module topo_mod
 contains
 
 subroutine init_topo_mod
-    write(HEAT_LOG_UNIT, '(a)') '  initialize river topology'
+    write(HEAT_LOG_UNIT, '(a)') '[heatlink/topo_mod/init_topo_mod] start'
     call calc_rivslp
 
     contains

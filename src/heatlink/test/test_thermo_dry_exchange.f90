@@ -6,8 +6,8 @@ program test_thermo_dry_exchange
     use phys_const_mod, only: RI, RW, HFUS, TMELT
     use thermo_mod, only: solve_water_ice_heat_budget, solve_heat_budget
     implicit none
-    real(kind = JPRB) :: t(3), v(3), ice(3), excess(3), area(3), zero(3), atmospheric(3)
-    real(kind = JPRB) :: u(3), mass_error(3), energy_error(3), dry(3), throughput(3), initial_v(3)
+    real(kind=JPRB) :: t(3), v(3), ice(3), excess(3), area(3), zero(3), atmospheric(3)
+    real(kind=JPRB) :: u(3), mass_error(3), energy_error(3), dry(3), throughput(3), initial_v(3)
     NSEQALL = 3
     LOGNAM = 6
     t = 290.0_JPRB

@@ -31,27 +31,27 @@ module thermo_mod
     &   solve_heat_budget, solve_water_ice_heat_budget
 
     ! Surface-related flux components (per unit area, W/m2)
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   hflx_lwd(:), & ! [W m-2] absorbed downward LW at surface
     &   hflx_lwu(:), & ! [W m-2] upward LW emission from surface
     &   hflx_shf(:), & ! [W m-2] sensible heat flux (sign per calc_bulk)
     &   hflx_lhf(:)    ! [W m-2] latent heat flux (sign per calc_bulk)
 
     ! Body-related components (per unit area, W/m2)
-    real(kind = JPRB), allocatable, save :: &
+    real(kind=JPRB), allocatable, save :: &
     &   hflx_swa(:), &   ! [W m-2] SW absorbed in water body (river+flood weighted)
     &   hflx_frc(:)      ! [W m-2] frictional heating (river+flood weighted)
 
 contains
 
 subroutine init_thermo_mod()
-    allocate(hflx_lwd(NSEQALL), source = 0.0_JPRB)
-    allocate(hflx_lwu(NSEQALL), source = 0.0_JPRB)
-    allocate(hflx_shf(NSEQALL),  source = 0.0_JPRB)
-    allocate(hflx_lhf(NSEQALL),  source = 0.0_JPRB)
+    allocate(hflx_lwd(NSEQALL), source=0.0_JPRB)
+    allocate(hflx_lwu(NSEQALL), source=0.0_JPRB)
+    allocate(hflx_shf(NSEQALL),  source=0.0_JPRB)
+    allocate(hflx_lhf(NSEQALL),  source=0.0_JPRB)
 
-    allocate(hflx_swa(NSEQALL), source = 0.0_JPRB)
-    allocate(hflx_frc(NSEQALL), source = 0.0_JPRB)
+    allocate(hflx_swa(NSEQALL), source=0.0_JPRB)
+    allocate(hflx_frc(NSEQALL), source=0.0_JPRB)
 end subroutine init_thermo_mod
 
 
@@ -73,18 +73,18 @@ subroutine calc_surface_heat_flux( &
     &   wattmp, watvol, &
     &   LWdn_in, Tair_in, Psrf_in, Qair_in, Wind_in, &
     &   hflx_srf)
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   wattmp(:), & ! [K] water temperature
     &   watvol(:)    ! [m3] water volume
-    real(kind = JPRB), intent(in) :: & ! atmospheric forcing
+    real(kind=JPRB), intent(in) :: & ! atmospheric forcing
     &   LWdn_in(:), & ! [W m-2] downward longwave radiation
     &   Tair_in(:), & ! [K] air temperature
     &   Psrf_in(:), & ! [hPa] surface pressure
     &   Qair_in(:), & ! [kg kg-1] specific humidity
     &   Wind_in(:)    ! [m s-1] wind speed
-    real(kind = JPRB), intent(out) :: &
+    real(kind=JPRB), intent(out) :: &
     &   hflx_srf(:) ! [W m-2] [W m-2] net surface heat flux (positive into water)
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq
 
     do iseq = 1, NSEQALL
@@ -121,23 +121,23 @@ subroutine calc_body_heat_flux( &
         &   flddph, fldare, fldvel, &
         &   hflx_bdy)
 
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   watvol(:) ! [m3] water volume
-    real(kind = JPRB), intent(in) :: & ! atmospheric forcing
+    real(kind=JPRB), intent(in) :: & ! atmospheric forcing
     &   SWdn_in(:) ! [W m-2] downward shortwave radiation
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   rivdph(:), & ! [m] river depth
     &   rivare(:), & ! [m2] river area
     &   rivvel(:), & ! [m s-1] river velocity
     &   flddph(:), & ! [m] flood depth
     &   fldare(:), & ! [m2] flood area
     &   fldvel(:)    ! [m s-1] flood velocity
-    real(kind = JPRB), intent(out) :: &
+    real(kind=JPRB), intent(out) :: &
     &   hflx_bdy(:) ! [W m-2] [W m-2] net body heat flux (positive into water)
 
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   sw_in, sw_pen, &
     &   abs_riv, abs_fld, &
     &   hfrc_riv, hfrc_fld, &
@@ -188,23 +188,23 @@ end subroutine calc_body_heat_flux
 !   dT = dE / (RW * CW * V)
 ! ==============================================================================================
 subroutine solve_heat_budget(wattmp, watvol, hflx_srf, hflx_bdy, srfare, dt, unapplied_energy_j, added_energy_j)
-    real(kind = JPRB), intent(inout) :: &
+    real(kind=JPRB), intent(inout) :: &
     &   wattmp(:) ! [K] water temperature
-    real(kind = JPRB), intent(in)    :: &
+    real(kind=JPRB), intent(in)    :: &
     &   watvol(:), &   ! [m3] water volume
     &   hflx_srf(:), & ! [W m-2] [W m-2] net surface heat flux (positive into water)
     &   hflx_bdy(:), & ! [W m-2] [W m-2] net body heat flux (positive into water)
     &   srfare(:), &   ! [m2] surface area (river+flood)
     &   dt             ! [s] time step
-    real(kind = JPRB) :: &
+    real(kind=JPRB) :: &
     &   dE, q_net, dry_energy
-    real(kind = JPRB), intent(out), optional :: unapplied_energy_j(:), added_energy_j(:) ! [J]
-    integer(kind = JPIM) :: &
+    real(kind=JPRB), intent(out), optional :: unapplied_energy_j(:), added_energy_j(:) ! [J]
+    integer(kind=JPIM) :: &
     &   iseq
 
     do iseq = 1, NSEQALL
         q_net = hflx_srf(iseq) + hflx_bdy(iseq)
-        dE = q_net * srfare(iseq) * dt
+        dE    = q_net * srfare(iseq) * dt
         call update_liquid_temperature_no_phase_change( &
         &   wattmp(iseq), watvol(iseq), dE, dry_energy)
         if (present(unapplied_energy_j)) unapplied_energy_j(iseq) = dry_energy
@@ -226,12 +226,12 @@ subroutine solve_water_ice_heat_budget( &
     &   surface_ice_atmospheric_heat_flux_w_m2, &
     &   excess_ice_atmospheric_heat_flux_w_m2, timestep_s, &
     &   unapplied_energy_j, mass_budget_error_kg, energy_budget_error_j, dry_unapplied_energy_j, heat_throughput_j, added_energy_j)
-    real(kind = JPRB), intent(inout) :: &
+    real(kind=JPRB), intent(inout) :: &
     &   water_temperature_k(:), &   ! [K] Liquid-water temperature before and after the local update.
     &   liquid_water_volume_m3(:), & ! [m3] Liquid-water volume before and after the local update.
     &   surface_ice_volume_m3(:), &  ! [m3] Water-surface ice volume before and after the local update.
     &   excess_ice_volume_m3(:)      ! [m3] Immobile excess-ice volume before and after the local update.
-    real(kind = JPRB), intent(in) :: &
+    real(kind=JPRB), intent(in) :: &
     &   water_surface_area_m2(:), &  ! [m2] Combined river and inundated water-surface area.
     &   surface_ice_area_m2(:), &    ! [m2] Water-surface area covered by ice.
     &   excess_ice_area_m2(:), &     ! [m2] Effective atmospheric-exchange area of immobile excess ice.
@@ -240,13 +240,13 @@ subroutine solve_water_ice_heat_budget( &
     &   surface_ice_atmospheric_heat_flux_w_m2(:), & ! [W m-2] Atmospheric flux into water-surface ice.
     &   excess_ice_atmospheric_heat_flux_w_m2(:), & ! [W m-2] Atmospheric flux into immobile excess ice.
     &   timestep_s                     ! [s] Coupling time-step duration.
-    real(kind = JPRB), intent(out) :: &
+    real(kind=JPRB), intent(out) :: &
     &   unapplied_energy_j(:), &       ! [J] Energy not applied by the local phase-change kernel.
     &   mass_budget_error_kg(:), &     ! [kg] Final minus unnormalized initial local water-plus-ice mass.
     &   energy_budget_error_j(:)       ! [J] Error including unapplied energy and tiny-volume normalization.
-    real(kind = JPRB), intent(out), optional :: dry_unapplied_energy_j(:), heat_throughput_j(:), added_energy_j(:) ! [J]
-    real(kind = JPRB) :: dry_energy
-    real(kind = JPRB) :: &
+    real(kind=JPRB), intent(out), optional :: dry_unapplied_energy_j(:), heat_throughput_j(:), added_energy_j(:) ! [J]
+    real(kind=JPRB) :: dry_energy
+    real(kind=JPRB) :: &
     &   open_water_area_m2, &          ! [m2] Water-surface area not covered by ice.
     &   water_to_ice_heat_flux_w_m2, & ! [W m-2] Conductive heat flux from liquid water into surface ice.
     &   water_added_energy_j, &        ! [J] Net energy increment applied directly to liquid water.
@@ -257,7 +257,7 @@ subroutine solve_water_ice_heat_budget( &
     &   excess_ice_melted_mass_kg, &   ! [kg] Immobile excess-ice mass melted during this update.
     &   maximum_negative_volume_m3, &  ! [m3] Largest negative state-volume magnitude in one cell.
     &   domain_maximum_negative_volume_m3 ! [m3] Largest invalid negative state-volume magnitude.
-    integer(kind = JPIM) :: &
+    integer(kind=JPIM) :: &
     &   iseq, &                         ! [-] Vector index of the river cell.
     &   invalid_cell_count, &           ! [-] Number of cells rejected by local-state validation.
     &   nonfinite_cell_count            ! [-] Number of cells containing a NaN or infinite input.
@@ -291,23 +291,23 @@ subroutine solve_water_ice_heat_budget( &
         &   excess_ice_area_m2(iseq) * timestep_s
 
         call update_local_water_ice_state( &
-        &   liquid_water_volume_m3 = liquid_water_volume_m3(iseq), &
-        &   liquid_water_temperature_k = water_temperature_k(iseq), &
-        &   surface_ice_volume_m3 = surface_ice_volume_m3(iseq), &
-        &   excess_ice_volume_m3 = excess_ice_volume_m3(iseq), &
-        &   liquid_water_added_energy_j = water_added_energy_j, &
-        &   surface_ice_added_energy_j = surface_ice_added_energy_j, &
-        &   excess_ice_added_energy_j = excess_ice_added_energy_j, &
-        &   frozen_water_mass_kg = frozen_water_mass_kg, &
-        &   surface_ice_melted_mass_kg = surface_ice_melted_mass_kg, &
-        &   excess_ice_melted_mass_kg = excess_ice_melted_mass_kg, &
-        &   unapplied_energy_j = unapplied_energy_j(iseq), &
-        &   mass_budget_error_kg = mass_budget_error_kg(iseq), &
-        &   energy_budget_error_j = energy_budget_error_j(iseq), &
-        &   state_is_valid = state_is_valid, &
-        &   nonfinite_input_detected = nonfinite_input_detected, &
-        &   maximum_negative_volume_m3 = maximum_negative_volume_m3, &
-        &   dry_unapplied_energy_j = dry_energy)
+        &   liquid_water_volume_m3=liquid_water_volume_m3(iseq), &
+        &   liquid_water_temperature_k=water_temperature_k(iseq), &
+        &   surface_ice_volume_m3=surface_ice_volume_m3(iseq), &
+        &   excess_ice_volume_m3=excess_ice_volume_m3(iseq), &
+        &   liquid_water_added_energy_j=water_added_energy_j, &
+        &   surface_ice_added_energy_j=surface_ice_added_energy_j, &
+        &   excess_ice_added_energy_j=excess_ice_added_energy_j, &
+        &   frozen_water_mass_kg=frozen_water_mass_kg, &
+        &   surface_ice_melted_mass_kg=surface_ice_melted_mass_kg, &
+        &   excess_ice_melted_mass_kg=excess_ice_melted_mass_kg, &
+        &   unapplied_energy_j=unapplied_energy_j(iseq), &
+        &   mass_budget_error_kg=mass_budget_error_kg(iseq), &
+        &   energy_budget_error_j=energy_budget_error_j(iseq), &
+        &   state_is_valid=state_is_valid, &
+        &   nonfinite_input_detected=nonfinite_input_detected, &
+        &   maximum_negative_volume_m3=maximum_negative_volume_m3, &
+        &   dry_unapplied_energy_j=dry_energy)
         ! Record the actual signed input to the discrete phase kernel, before subtracting unapplied heat.
         if (present(added_energy_j)) added_energy_j(iseq) = &
         &   water_added_energy_j + surface_ice_added_energy_j + excess_ice_added_energy_j
